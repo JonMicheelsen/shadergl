@@ -1,0 +1,1758 @@
+#include <common.h>
+#include <ssr_common.h>
+
+#ifdef OUT_R8_UINT
+layout(location = 0) out uint OUT_UINT;
+#elif defined(OUT_ENVMAP)
+layout(location = 0) out vec4 OUT_Color;
+layout(location = 1) out vec4 OUT_Color1;
+layout(location = 2) out vec4 OUT_Color2;
+layout(location = 3) out vec4 OUT_Color3;
+layout(location = 4) out vec4 OUT_Color4;
+layout(location = 5) out vec4 OUT_Color5;
+#elif defined(OUT_1)
+layout(location = 0) out vec4 OUT_Color;
+#else
+layout(location = 0) out vec4 OUT_Color;
+layout(location = 1) out vec4 OUT_Color1;
+layout(location = 2) out vec4 OUT_Color2;
+layout(location = 3) out vec4 OUT_Color3;
+#endif
+
+
+#define DIR in
+#include <vertex.h>
+#undef DIR
+
+#ifdef GFX_RT_DEBUG
+void DebugStore(vec4 col)
+{
+	imageStore(T_debug, ivec2(gl_FragCoord.xy), col);
+}
+void DebugStore(vec3 col)
+{
+	DebugStore(vec4(col, 1));
+}
+
+void DebugStore(float val, float alpha)
+{
+	DebugStore(vec4(-val, val, 0, alpha));
+}
+void DebugStore(float val)
+{
+	DebugStore(val, 1);
+}
+#endif
+
+#define LOCALSPEC
+
+float Luminance()
+{
+#ifdef PROJECT_XR
+	return 0.6f;
+#else
+	return 1.0f;
+#endif
+//	return textureLod(T_luminance, vec2(0, 0), 0).x;
+}
+
+float LuminanceLast()
+{
+	return Luminance();
+//	return textureLod(T_luminance_last, vec2(0, 0), 0).x;
+}
+
+#ifdef GFX_VULKAN
+layout(constant_id = 0) const bool B_alpha_test = false;
+layout(constant_id = 1) const float F_alpha_ref = 0.5f;
+#else
+uniform float F_alpha_ref = 0.0f;	//for alpha-testing
+#endif
+
+void StandardControlTexture()
+{
+#ifdef SHADERTAG_CT
+	if (texture(S_input_rt, IO_uv0).r < 0.5f) {
+		discard;
+	}
+#endif
+}
+
+void AlphaTest(float a)
+{
+	if (B_alpha_test)
+	{
+		if (a < F_alpha_ref) {
+			discard;
+		}
+	}/**/
+}
+
+void AlwaysAlphaTestWithCoverage(inout float a, float ref)
+{
+	if (a < ref) {
+		discard;
+	}
+	a = (a - ref) / max(abs(dFdx(a)) + abs(dFdy(a)), FLOAT_SMALL_NUMBER) + 0.5;
+}
+void AlphaTestWithCoverage(inout float a)
+{
+	if (B_alpha_test)
+	{
+		AlwaysAlphaTestWithCoverage(a, F_alpha_ref);
+	}
+}
+
+#if 0//don't use this it crashes on intel gpus
+void Alpha2DepthScale(float a)// when using this preferrably add "layout (depth_less) out float gl_FragDepth;" before include "common.fh"
+{
+	gl_FragDepth = gl_FragCoord.z * sqrt(saturate(a));
+}
+#endif
+
+#ifdef D_OBJECT_RENDER_MODE
+	#define OBJECTRENDERMODE_SOLID()		\
+		{			\
+			if (B_alpha_test) {				\
+				if (OUT_Color.a >= F_alpha_ref) {	\
+					OUT_Color.a = 1.0f;			\
+				}			\
+			}			\
+			else {			\
+				OUT_Color.a = 1.0f;		\
+			}			\
+		}
+#else
+	#define OBJECTRENDERMODE_SOLID() /* OBJECTRENDERMODE_SOLID() */
+#endif
+
+
+/*void OrthogonalNTB(out vec3 n, out vec3 t, out vec3 b)
+{
+	n = normalize(IO_normal);//TODO @Timon referencing IO_normal from a function breaks vr_oculus_avatar_pbs naturally
+	t = IO_tangent;
+	b = IO_binormal;
+	t = normalize(t - n * dot(n, t));
+	b = normalize(b - n * dot(n, b));
+	b = normalize(b - t * dot(t, b));
+}*/
+
+#define INPUT_NTB_ONESIDED()			\
+	vec3 IO_normal, IO_tangent, IO_binormal;			\
+	IO_normal = normalize(_IO_normal);			\
+	IO_tangent = normalize(_IO_tangent);			\
+	IO_binormal = normalize(_IO_binormal);
+
+#define INPUT_NTB_TWOSIDED()			\
+	vec3 IO_normal, IO_tangent, IO_binormal;			\
+	IO_normal = normalize(_IO_normal);			\
+	IO_tangent = normalize(_IO_tangent);			\
+	IO_binormal = normalize(_IO_binormal);		\
+	if (gl_FrontFacing) {				\
+		IO_normal = -IO_normal;			\
+	}
+
+#define CalcWorldNormal(texnormal)	normalize( ((texnormal).x * -IO_tangent) + ((texnormal).y * IO_binormal) + ((texnormal).z * IO_normal) )
+
+#define CalcViewNormalOffset(texnormal)	((mat3(M_view) * ((texnormal).x * -IO_tangent + (texnormal).y * IO_binormal)).xy)
+
+float3 UncompressDXT5_NM(float4 normPacked)
+{
+	float3 norm = float3(normPacked.a * 2.0 - 1.0, normPacked.g * 2.0 - 1.0, 0.0);
+	norm.z = sqrt(1.0 - norm.x * norm.x - norm.y * norm.y);
+	return norm;
+}
+
+//TODO @Timon further dedup the various variants
+vec3 NormalReZ(vec3 texnormal)
+{
+	texnormal.z = sqrt(1 - saturate(dotself(texnormal.xy)));	//without saturate we'd get NaNs in some textures
+	return texnormal;
+}
+
+vec2 textureNormalXY(sampler2D samp, vec2 uv)
+{
+	return SIGNED(texture(samp, uv).xy);
+}
+vec2 textureNormalXY(sampler2D samp, vec2 uv, float str)
+{
+	return SIGNED(texture(samp, uv).xy) * str;
+}
+
+vec3 textureNormalXYZ(sampler2D samp, vec2 uv)
+{
+	vec3 ret;
+	ret = SIGNED(texture(samp, uv).xyz);
+	return ret;
+}
+vec3 textureNormalXYZ(sampler2D samp, vec2 uv, float str)
+{
+	vec3 ret;
+	ret = SIGNED(texture(samp, uv).xyz);
+	ret.xy *= str;
+// 	ret = normalize(ret);
+	return ret;
+}
+vec3 textureNormalXYreZ(sampler2D samp, vec2 uv)
+{
+	vec3 ret;
+	ret.xy = SIGNED(texture(samp, uv).xy);
+	ret = NormalReZ(ret);
+	return ret;
+}
+vec3 textureNormalXYreZ(sampler2D samp, vec2 uv, float str)
+{
+	vec3 ret;
+#if 0
+	// experimental jitter for TAA
+	float t = fract(F_time * 10);
+	vec2 off = vec2(random(t * gl_FragCoord.xy), random(t * gl_FragCoord.yx));
+	// DebugStore(vec3(off, 0));
+	off = uv2clip(off);
+	off *= 0.5 / textureSize(samp, 0).xy;
+//	uv += off;
+#endif
+	ret.xy = SIGNED(texture(samp, uv).xy);
+	ret = NormalReZ(ret);
+	ret.xy *= str;
+// 	ret = normalize(ret);
+	return ret;
+}
+vec3 textureNormalXYreZ(sampler2DArray samp, vec3 uv, float str)
+{
+	vec3 ret;
+	ret.xy = SIGNED(texture(samp, uv).xy);
+	ret = NormalReZ(ret);
+	ret.xy *= str;
+// 	ret = normalize(ret);
+	return ret;
+}
+
+vec3 textureNormal(sampler2D samp, vec2 uv, float str)
+{
+	return textureNormalXYreZ(samp, uv, str);
+}
+vec3 textureNormal(sampler2DArray samp, vec3 uv, float str)
+{
+	return textureNormalXYreZ(samp, uv, str);
+}
+vec3 textureNormal(sampler2D samp, vec2 uv)
+{
+	return textureNormalXYreZ(samp, uv);
+}
+
+#define TEXTURE_NORMAL(name0, uv0)		textureNormal(S_##name0##_map, (uv0) * S_##name0##_tiling, S_##name0##str)
+#define TEXTURE_NORMAL_XY(name0, uv0)	textureNormalXY(S_##name0##_map, (uv0) * S_##name0##_tiling, S_##name0##str)
+
+
+#define SAMPLE_NORMAL_MAP(out, name0, uv0)			\
+	{			\
+		(out) = IO_normal;			\
+		_IF(S_##name0##_bool) {			\
+			vec3 texnorm = TEXTURE_NORMAL(name0, (uv0));			\
+			(out) = CalcWorldNormal(texnorm);			\
+		}			\
+	}
+
+#define SAMPLE_NORMAL_MAP2(out, name0, uv0, name1, uv1)			\
+	{			\
+		(out) = IO_normal;			\
+		_IF(S_##name0##_bool) {			\
+			vec3 texnorm = TEXTURE_NORMAL(name0, (uv0));			\
+			_IF(S_##name1##_bool) {			\
+				texnorm.xy += TEXTURE_NORMAL_XY(name1, (uv1));			\
+			}			\
+			texnorm = normalize(texnorm);				\
+			(out) = CalcWorldNormal(texnorm);			\
+		}			\
+	}
+
+#define STANDARD_NORMAL_MAP(out)			SAMPLE_NORMAL_MAP(out, normal, IO_uv0)
+#define STANDARD_NORMAL_DETAIL_MAP(out)		SAMPLE_NORMAL_MAP2(out, normal, IO_uv0, normal_detail, IO_uv0)
+#define STANDARD_NORMAL_NOISE_MAP(out)		SAMPLE_NORMAL_MAP2(out, normal, IO_uv0, normal_noise, IO_uv0)
+
+#define STANDARD_NORMAL_DETAIL_MAPUV(out,uv)		SAMPLE_NORMAL_MAP2(out, normal, uv, normal_detail, uv)
+
+vec3 calcWorldNormal(vec3 TexNormal, vec3 Norm, vec3 Tang, vec3 BiNo)
+{
+	return normalize(TexNormal.x * normalize(-Tang) + TexNormal.y * normalize(BiNo) + TexNormal.z * normalize(Norm));
+}
+
+float3 calcWorldNormal2(CONST float3 TexNormal, CONST float3 Norm, CONST float3 Tang, CONST float3 BiNo)
+{
+	return calcWorldNormal(TexNormal, Norm, Tang, BiNo);
+}
+
+half CalcNewViewAngleFading(CONST float3 normalWV, CONST float3 posWV, CONST half AnglePower)
+{
+	return lerp(0.0, 1.0, saturate((abs(dot(normalWV, normalize(posWV))) - AnglePower)));
+}
+
+
+vec2 GetFragUV()
+{
+	return gl_FragCoord.xy / V_viewportpixelsize.xy;
+}
+
+vec3 GetFragUVZ()
+{
+	return vec3(GetFragUV(), gl_FragCoord.z);
+}
+
+vec3 GetFragClip()
+{
+	return uv2clipZ(GetFragUVZ());
+}
+
+vec3 GetFragView()
+{
+	return UnProject(GetFragClip());
+}
+
+vec3 GetFragViewDir()
+{
+	return normalize(GetFragView());
+}
+
+vec3 GetFragWorld()
+{
+	return view2world(GetFragView());
+}
+
+vec3 GetCheckers(int size)
+{
+	uvec2 pix = uvec2(gl_FragCoord.xy) / size;
+	if (((pix.x + pix.y) & 1) != 0)
+		return vec3(0.2);
+	return vec3(0.4);
+}
+vec3 GetCheckers()
+{
+	return GetCheckers(16);
+}
+
+half4 RTResolve(sampler2D samp)
+{
+	return texelFetch(samp, ivec2(gl_FragCoord.xy), 0);	//TODO should be better, but need to test perf/compat
+	
+//	float2 uv = float2(inVPos.xy / ViewPort.xy); // use ps3 inputs and set LOD to 0
+	float2 uv = (gl_FragCoord.xy/* + half2(0.5f, 0.5f)*/) / V_viewportpixelsize.xy;
+//	float2 uv = (gl_FragCoord.xy/* + half2(0.5f, 0.5f)*/) / textureSize(samp, 0);
+//	float2 uv = (gl_FragCoord.xy/* + half2(0.5f, 0.5f)*/) / vec2(1024, 768);
+	
+	//CONST half localoccl = pow(Occl, 1.0/4.0); // scale power up, allow locallight to ignore occl to some degree, but if its very dark still scale down more.
+//	return vec4(textureLod(samp, uv, 0).rgb, 0.8f);
+//	return textureLod(samp, uv, 0).rgba * vec4(1, 1, 1, 0.5f); 
+	return textureLod(samp, uv, 0);
+}
+half4 RTResolve(sampler2D samp, vec2 uv)
+{
+#ifndef VIEWPORT_HACK2
+	#ifdef UPMODE_FSR
+		//with FSR the true resolution of depth can differ or be the same as the color RTs, hackishly compensate for that
+		#ifdef VIEWPORT_HALF_RES_FSR_HACK
+		uv *= 2;
+		#endif
+		uv *= V_viewportpixelsize.xy / textureSize(samp, 0);
+	#endif
+#endif
+	return textureLod(samp, uv, 0);
+}
+half4 RTResolveSoft(sampler2D samp)
+{
+	float2 uv = (gl_FragCoord.xy/* + half2(0.5f, 0.5f)*/) / V_viewportpixelsize.xy;
+	//float2 uv = (gl_FragCoord.xy/* + half2(0.5f, 0.5f)*/) / textureSize(samp, 0);
+	return textureLod(samp, uv, 0);
+}
+half4 RTResolveSample(sampler2D samp, int idx)
+{
+	return RTResolve(samp);
+}
+
+half4 RTResolve(sampler2DMS samp)
+{
+#ifdef PER_SAMPLE
+	vec4 col = texelFetch(samp, ivec2(gl_FragCoord.xy), gl_SampleID);
+#elif defined(MAIN_MSAA)
+	vec4 col = texelFetch(samp, ivec2(gl_FragCoord.xy), 0);
+/*	for (int i = 1; i < MAIN_MSAA; ++i) {
+		col += texelFetch(samp, ivec2(gl_FragCoord.xy), i);
+	}
+	/**/
+/*	#if MAIN_MSAA > 1
+	col += texelFetch(samp, ivec2(gl_FragCoord.xy), 1);
+	#elif MAIN_MSAA > 2
+	col += texelFetch(samp, ivec2(gl_FragCoord.xy), 2);
+	col += texelFetch(samp, ivec2(gl_FragCoord.xy), 3);
+	#elif MAIN_MSAA > 4
+	col += texelFetch(samp, ivec2(gl_FragCoord.xy), 4);
+	col += texelFetch(samp, ivec2(gl_FragCoord.xy), 5);
+	col += texelFetch(samp, ivec2(gl_FragCoord.xy), 6);
+	col += texelFetch(samp, ivec2(gl_FragCoord.xy), 7);
+	#elif MAIN_MSAA > 8
+	col += texelFetch(samp, ivec2(gl_FragCoord.xy), 8);
+	col += texelFetch(samp, ivec2(gl_FragCoord.xy), 9);
+	col += texelFetch(samp, ivec2(gl_FragCoord.xy), 10);
+	col += texelFetch(samp, ivec2(gl_FragCoord.xy), 11);
+	col += texelFetch(samp, ivec2(gl_FragCoord.xy), 12);
+	col += texelFetch(samp, ivec2(gl_FragCoord.xy), 13);
+	col += texelFetch(samp, ivec2(gl_FragCoord.xy), 14);
+	col += texelFetch(samp, ivec2(gl_FragCoord.xy), 15);
+	#else
+	#error weird MAIN_MSAA
+	#endif
+	/**/
+// 	col /= vec4(MAIN_MSAA);
+//	col = vec4(1, 0, 1, 1);
+#else
+	vec4 col = vec4(1, 0, 1, 1);
+#endif
+	return col;
+}
+half4 RTResolve(sampler2DMS samp, vec2 uv)
+{
+#ifndef VIEWPORT_HACK2
+	#ifdef UPMODE_FSR
+		//with FSR the true resolution of depth can differ or be the same as the color RTs, hackishly compensate for that
+		uv *= V_viewportpixelsize.xy / textureSize(samp);
+		#ifdef VIEWPORT_HALF_RES_FSR_HACK
+		uv *= 2;
+		#endif
+	#endif
+#endif
+// 	uv *= V_viewportpixelsize.xy;
+	uv *= textureSize(samp).xy;
+#ifdef PER_SAMPLE
+	return texelFetch(samp, ivec2(uv), gl_SampleID);
+#else
+	return texelFetch(samp, ivec2(uv), 0);
+#endif
+}
+half4 RTResolveSample(sampler2DMS samp, int idx)
+{
+	return texelFetch(samp, ivec2(gl_FragCoord.xy), idx);
+}
+
+#define FLAG_COMPLEX_DEPTH (1 << 7)
+#define FLAG_COMPLEX_NORMAL (1 << 6)
+#define FLAG_STATIONARY (1 << 5)
+#define FLAG_BACKGROUND (1 << 4)
+#define FLAG_COMPLEX (FLAG_COMPLEX_DEPTH | FLAG_COMPLEX_NORMAL)
+
+bool IsComplex(uint flags)
+{
+	return (flags & FLAG_COMPLEX) != 0;
+}
+bool IsComplexDepth(uint flags)
+{
+	return (flags & FLAG_COMPLEX_DEPTH) != 0;
+}
+bool IsStationary(uint flags)
+{
+	return (flags & FLAG_STATIONARY) != 0;
+}
+
+
+uint GetFlags()
+{
+	return texelFetch(T_flags, ivec2(gl_FragCoord.xy), 0).r;
+}
+uint GetFlagsLevel1()
+{
+	return texelFetch(T_flags, ivec2(gl_FragCoord.xy) >> 1, 1).r;
+}
+
+uint GetFlags(vec2 uv)
+{
+#ifdef UPMODE_FSR
+	//with FSR the true resolution of depth can differ or be the same as the color RTs, hackishly compensate for that
+	#ifdef VIEWPORT_HALF_RES_FSR_HACK
+	#endif
+	uv *= V_viewportpixelsize.xy / textureSize(T_flags, 0);
+#endif
+	return textureLod(T_flags, uv, 0).r;
+}
+
+
+//offset has to be a constant/literal, AMD is more anal about this! they check before optimizations
+#define RTResolveOffset(samp,offset)	texelFetchOffset(samp, ivec2(gl_FragCoord.xy), 0, offset)
+
+
+float GetDepth()
+{
+#ifdef OVERRIDE_DEPTH
+	return RTResolve(OVERRIDE_DEPTH).r;
+#else
+	return RTResolve(T_zdepth).r;
+#endif
+}
+float GetDepth(vec2 uv)
+{
+#ifdef OVERRIDE_DEPTH
+	return RTResolve(OVERRIDE_DEPTH, uv).r;
+#else
+	return RTResolve(T_zdepth, uv).r;
+#endif
+}
+
+vec3 GetUVPos()
+{
+	return vec3(GetFragUV(), GetDepth());
+}
+vec3 GetUVPos(vec2 uv)
+{
+	return vec3(uv, GetDepth(uv));
+}
+
+vec3 GetClipPos()
+{
+	return uv2clipZ(GetUVPos());
+}
+vec3 GetClipPos(vec2 uv)
+{
+	return uv2clipZ(GetUVPos(uv));
+}
+
+vec3 GetViewPos()
+{
+	return UnProject(GetClipPos());
+}
+vec3 GetViewPos(vec2 uv)
+{
+	return UnProject(GetClipPos(uv));
+}
+
+half Brightness(half3 c)
+{
+    return max(max(c.r, c.g), c.b);
+}
+
+#define LUM_ITU601 half3(0.299, 0.587, 0.114)
+
+// avoid clutter
+#include <p1/deferred/lighting_common.h>
+#include <p1/deferred/gbuffer_access.h>
+
+half lluma(vec3 c)
+{
+	return dot(c, vec3(0.2126, 0.7152, 0.0722));
+}
+half luminance(CONST half3 c)
+{
+	return dot( c, LUM_ITU601 );
+}
+
+float blendScreen(CONST float A, CONST float B)
+{
+	return (1 - (1 - A) * (1 - B));
+}
+half3 blendScreen(CONST half3 A, CONST half3 B)
+{
+	return (1 - (1 - A) * (1 - B));
+}
+
+float blendAvg(CONST float A, CONST float B)
+{
+ 	return ((A + B) / 2);
+}
+
+half3 blendAvg(CONST half3 A, CONST half3 B)
+{
+ 	return ((A + B) / 2);
+}
+
+half3 blendAdd(CONST half3 A, CONST half3 B)
+{
+ 	return (A + B);
+}
+
+half3 blendMix(CONST half3 A, const half3 B, const half fac)
+{
+	return A+(B-A)*fac;
+}
+
+half blendMix(CONST half A, const half B, const half fac)
+{
+	return A+(B-A)*fac;
+}
+
+float blendMultiply(CONST float A, CONST float B)
+{
+ 	return (A * B);
+}
+
+float blendMultiply(CONST float A, CONST float B, CONST float fac)
+{
+	return ((1-fac) * A + fac * A * B);
+}
+
+half3 blendMultiply(CONST half3 A, CONST half3 B)
+{
+ 	return (A * B);
+}
+
+half3 blendAlpha(CONST half3 A, CONST half3 B, CONST half alpha)
+{
+ 	//return ( (A * alpha) +  (B * (1 - alpha)) );
+ 	return lerp(A, B, saturate(alpha));
+}
+float4 blendAlphaF(float4 A, float4 B)
+{
+	return float4((A.rgb * A.a) + (B.rgb * (1.0f - A.a)), min(A.a + B.a, 1.0f));
+}
+
+
+float blendOverlay(CONST float A, CONST float B)
+{
+	half L = saturate(10 * (A - 0.45));
+	float result1 = 2.0 * A * B;
+	float result2 = 1.0 - 2.0 * (1.0 - B) * (1.0 - A);
+	return lerp(result1, result2, L);
+}
+
+half3 blendOverlay(CONST half3 A, CONST half3 B)
+{
+	//half3 lumCoeff = half3(0.25,0.65,0.1);
+	//half L = min(1,max(0,10*(dot(lumCoeff,A)- 0.45)));
+	half L = saturate(10 * (luminance(A) - 0.45));
+	half3 result1 = 2.0 * A * B;
+	half3 result2 = 1.0 - 2.0 * (1.0 - B) * (1.0 - A);
+	return lerp(result1, result2, L);
+}
+ 
+half3 blendClimate(CONST half3 A, CONST half3 B)
+{
+	if (A.r>0.99 && A.g>0.99 && A.b>0.99)
+	{
+		return half3(1.0,1.0,1.0);
+	}else
+	return A*B + ((A + B)/4.0 );
+}
+
+half3 blendOverlayHDR2(CONST half3 A, CONST half3 B, CONST half strength)
+{
+//float3 multiplyResults = base * blend;  
+//float3 screenResults = 1 - (1 - base) * (1 - blend);  
+//float3 t = max(0, sign(base - 0.5));  
+//float3 finalColor = 2 * lerp(multiplyResults, screenResults, t); 
+	half3 multiplyResults = A*B;//	base * blend;  
+	half3 screenResults = half3(4) - (half3(4) - A) * (half3(1) - B);  
+	half3 t = max(half3(0), sign(A - half3(10)));  
+	//return (A+B+ 8*lerp(multiplyResults, screenResults, t)); 
+	//return (A+strength*screenResults+ strength*20 * multiplyResults ); //the one
+	return (A+strength*B);//+ strength*20 * multiplyResults ); 
+	//return screenResults; 
+}
+
+
+
+
+float fresnel_a(float x)
+{
+	return ((( 1.0f/(pow(abs(x-1.12f),2))) - (1.0f/pow(1.12f,2))) / 68.652f);// (( 1/pow(1.0f-1.12f,2)) - (1/pow(1.12f,2)));
+}
+
+float fresnel(CONST float3 V, CONST float3 N, CONST half Power, CONST half Str, CONST half minRange)
+{
+	//TODO @Timon investigate the exact source of the NaN on the glass floor in the Thresher
+//	float fresnel = pow(1-abs(dot(V, N)), Power) * Str;    // note: abs() makes 2-sided materials work
+    float fresnel = pow(saturate(1-abs(dot(V, N))), Power) * Str;    // note: abs() makes 2-sided materials work
+    float result = minRange + (1-minRange) * fresnel;
+    return result;
+}
+
+float shadow(float x)
+{
+	//return ((10000.0f - (1.0f/(pow(abs(x-1.01f),2)))) / 9999.2f);//(( 1/pow(1.0f-1.01f,2)) - (1/pow(1.01f,2)));
+	return ((10000.0f - (1.0f/(pow((x-1.01f),2)))) / 9999.2f);//(( 1/pow(1.0f-1.01f,2)) - (1/pow(1.01f,2)));
+}
+
+float SoftParticleAttenuation(float softmin, float softmax, float z)
+{
+	float delta = z - softmin;
+	float range = softmax - softmin;
+	return saturate(delta / (range + 0.00001)); // prevent division by zero
+}
+
+vec3 Tonemap(vec3 color)
+{
+	color *= half3(F_exposure / (Luminance() + 0.001f));
+	color /= half3(1.0f + color);
+	return color;
+}
+vec3 InvTonemap(vec3 color)
+{
+	color *= half3(Luminance() / F_exposure);
+	return color;
+}
+
+mat2x3 calc_Light_Hair_PS(float3 DiffColor, float3 VertexToLight, float3 VertexToEye, float3 Normal, float3 Tangent, half SpecPower, half3 LightColor)
+{
+	mat2x3 Light = mat2x3(0); //(half2x3)0; // 698
+	float3 Diff;
+	float3 Spec;
+	float3 HalfAngle = normalize(VertexToEye + VertexToLight);
+	float NdL = dot(Normal, VertexToLight);
+	Diff = float3(max(0.0, 0.75 * NdL + 0.25));
+
+	float3 T1 = normalize(Tangent - 0.2 * Normal);
+	float3 T2 = normalize(Tangent + 0.1 * Normal);
+	
+	float3 T1dH = float3(dot(T1, HalfAngle));
+	float3 T2dH = float3(dot(T2, HalfAngle));
+	
+	float3 colorkey = DiffColor / luminance(DiffColor);
+	Spec = pow(float3(1) - T1dH * T1dH, float3(0.5 * SpecPower * 0.2)) * (float3(0.5) + float3(0.5) * colorkey);
+	Spec += pow(float3(1) - T2dH * T2dH, float3(0.5 * SpecPower)) * (float3(0.9) + float3(0.1) * colorkey);
+	Spec *= saturate(3.0 * saturate(NdL) ); //Shadow term
+	
+	Light[0].rgb = Diff * LightColor.rgb;
+	Light[1].rgb = Spec * LightColor.rgb;
+	return Light;
+}
+
+//rescaled lambert
+float lambert_half(CONST float NdL, CONST half lambertpower)
+{
+	return (pow( (NdL * 0.5) + 0.5, lambertpower));
+}
+
+half2 calc_LambertHalf_Phong(CONST float3 N, CONST float3 L, CONST half3 V, CONST half2 Power)
+{
+	half2 Light;
+
+	float3 R = reflect(-L, N);
+	half NdL = dot(N, L);
+		
+	Light.x = lambert_half(NdL, Power.y);		// Diffuse (half lambert/scaled up)
+	Light.y = pow(saturate(dot(R, V)) + HALF_SMALL_NUMBER, Power.x);	// Phong (half precission)
+	Light.y *= saturate(3.0 * saturate(NdL)); 	// Shadow term
+	
+   	return Light;
+}
+
+half2 calc_LambertHalf_Blinn(CONST float3 N, CONST float3 L, CONST half3 V, CONST half2 Power)
+{
+	half2 Light;
+	
+	CONST float3 H = normalize(V + L);
+	CONST half NdL = dot(N, L);
+	
+	Light.x = lambert_half(NdL, Power.y);
+	Light.y = pow(saturate(dot(N, H)), Power.x);//Specular
+	Light.y *= saturate(3.0 * saturate(NdL)); //Shadow term
+	
+	return Light;
+}
+
+half2 calc_Lambert_Phong(CONST float3 N, CONST float3 L, CONST half3 V, CONST half2 Power)
+{
+	half2 Light;
+
+	CONST float3 R = reflect(-L, N); 	
+	CONST half NdL = dot(N, L);
+		
+	Light.x = saturate(NdL);		// Diffuse
+	Light.y = pow(saturate(dot(R, V)), Power.x);	// Phong (half precission)
+	Light.y *= saturate(3.0 * Light.x); 	// Shadow term
+	
+   	return Light;
+}
+
+half2 calc_Lambert_Blinn(CONST float3 N, CONST float3 L, CONST half3 V, CONST half2 Power)
+{
+	half2 Light;
+	
+	CONST float3 H = normalize(V + L); // NOTE: we need float here, but this triggers the flow control bug...???
+	CONST half NdL = dot(N, L);
+	
+	Light.x = saturate(NdL); 		//Diffuse
+	Light.y = pow(saturate(dot(N, H)), Power.x);//Specular
+	Light.y *= saturate(3.0 * Light.x); //Shadow term
+	
+	return Light;
+}
+
+half3 calc_StraussNew(	CONST float3 N, 
+					CONST float3 L, 
+					CONST float3 V, 
+					CONST float _smooth, 
+					CONST float metal,
+					CONST float diffusestr,
+					CONST float specularstr,
+					CONST float specfunc,
+					CONST half3 lightcolor,
+					CONST half3 diffusecolor,
+					CONST half3 F0)
+{
+//	return specularstr *= 0.001;
+	  // Make sure the interpolated inputs and
+    // constant parameters are normalized
+	half3 diffuse;
+	
+   //  float3 nn = normalize( N );
+   //  float3 ln = normalize( L );
+   //  float3 vn = normalize( V );
+ 
+	
+	float3 h = reflect( -L, N );
+ 
+	    
+    // Declare any aliases:
+    float NdotL   = (dot( N, L ));
+	
+	float NdotV   = (dot( N, V ));
+    float HdotV   = (dot( h, V ));
+    float fNdotL  = fresnel_a( NdotL ); //((( 1.0f/(pow(abs(NdotL-1.12f),2)+0.01f)) - 0.797f) / 68.652f);
+    float s_cubed = _smooth * _smooth * _smooth;
+	//float s_cubed = _smooth * _smooth ;
+		
+	float fTransparency = 0.0f;
+	
+    // Evaluate the diffuse term
+    float d  = ( 1.0f - metal * _smooth );
+	float Rd = ( 1.0f - s_cubed ) * ( 1.0f - fTransparency );
+	
+	
+	diffuse = NdotL * d * Rd * diffusecolor;
+   // Compute the inputs into the specular term
+    float r = ( 1.0f - fTransparency ) - Rd;
+ 
+	
+    float j = fNdotL;// * shadow( NdotL ) * shadow( NdotV );
+ 
+ 
+
+    // 'k' is used to provide small off-specular
+    // peak for very rough surfaces. Can be changed
+    // to suit desired results...
+ /*   float k = 0.0f;//was 0.1
+    float reflect = min( 1.0f, r + j * ( r + k ) );
+ 
+    float3 C1 = float3( 1.0f, 1.0f, 1.0f );
+    float3 Cs = C1 + metal * (1.0f - fNdotL) * (diffusecolor - C1);
+ 
+ 	half specatten = saturate(3.0 * saturate(NdotL));*/
+	//half specatten = saturate(NdotL);
+
+	
+
+    // Evaluate the specular term
+    
+	//half3 specular = Cs* reflect*specatten;
+    //specular *= pow( -HdotV, 3.0f / ((1.0f - smooth)) ); //(0.000000134123f + (1.0f - smooth))
+	
+	//specular = C1 * pow(saturate(HdotV), 32.0f);
+
+	CONST float3 H2 = normalize(V + L);
+	half3 specular = half3(pow(saturate(dot(N,H2)), 60.0f));
+	//specular = float3(0.0f,0.0f,0.0f);
+
+    // Composite the final result, ensuring
+    // the values are >= 0.0f yields better results. Some
+    // combinations of inputs generate negative values which
+    // looks wrong when rendered...
+    diffuse  = max( half3(0.0f), diffusestr*diffuse*lightcolor.rgb );
+    specular = max( half3(0.0f), specularstr*specular*lightcolor.rgb * diffusecolor.rgb );
+	//new : additive/multiply mix
+
+	CONST half3 addSpecular = specfunc*specular;
+	CONST half3 mulSpecular = (1.0 - specfunc)*specular;
+	diffuse = (diffuse + addSpecular) + (diffuse*mulSpecular);
+//	diffuse *= 0.00001;
+	
+	//old style aditive only
+//	diffuse += specular/1.0; //diffuse += diffuse*specular;
+//	diffuse += specular;
+//	diffuse = half3(specularstr) / 100;
+//	diffuse += V / 10;
+//	diffuse += L / 100;
+//	diffuse += V + L;
+//	diffuse += N / 100;
+//	diffuse += H2 / 100;
+//	diffuse += half3(NdotL, NdotV, HdotV) / 100.0;
+//	diffuse += half3(saturate(dot(N,H2)) / 50.0);
+//	diffuse += half3(pow(saturate(dot(N,H2)), 60.0f));
+	
+    return diffuse;
+}
+
+half3 calc_StraussNew2(	CONST float3 N, 
+					CONST float3 L, 
+					CONST float3 V, 
+					CONST float _smooth, 
+					CONST float metal,
+					CONST float diffusestr,
+					CONST float specularstr,
+					CONST float specfunc,
+					CONST half3 lightcolor,
+					CONST half3 diffusecolor,
+					CONST half3 F0,
+					CONST half3 specularcolor)
+{
+	  // Make sure the interpolated inputs and
+    // constant parameters are normalized
+	half3 diffuse;
+	
+   //  float3 nn = normalize( N );
+   //  float3 ln = normalize( L );
+   //  float3 vn = normalize( V );
+     float3 h = reflect( -L, N );
+ 
+	    
+    // Declare any aliases:
+    float NdotL   = (dot( N, L ));
+	
+	float NdotV   = (dot( N, V ));
+    float HdotV   = (dot( h, V ));
+    float fNdotL  = fresnel_a( NdotL ); //((( 1.0f/(pow(abs(NdotL-1.12f),2)+0.01f)) - 0.797f) / 68.652f);
+    float s_cubed = _smooth * _smooth * _smooth;
+	//float s_cubed = smooth * smooth ;
+		
+	float fTransparency = 0.0f;
+	
+    // Evaluate the diffuse term
+    float d  = ( 1.0f - metal * _smooth );
+	float Rd = ( 1.0f - s_cubed ) * ( 1.0f - fTransparency );
+	
+	
+	diffuse = NdotL * d * Rd * diffusecolor;
+   // Compute the inputs into the specular term
+    float r = ( 1.0f - fTransparency ) - Rd;
+ 
+	
+    float j = fNdotL;// * shadow( NdotL ) * shadow( NdotV );
+ 
+
+
+    // 'k' is used to provide small off-specular
+    // peak for very rough surfaces. Can be changed
+    // to suit desired results...
+     float k = 0.1f;//was 0.1
+    float reflect = min( 1.0f, r + j * ( r + k ) );
+ 
+    float3 C1 = specularcolor;//float3( 1.0f, 1.0f, 1.0f );
+    //float3 Cs = C1 + metal * (1.0f - fNdotL) * (diffusecolor - C1);
+	float3 Cs = C1 + metal * (1.0f - NdotL) * (diffusecolor - C1);
+ 
+ 	//half specatten = saturate(3.0 * saturate(NdotL));
+	half specatten = saturate(NdotL);
+
+	
+
+    // Evaluate the specular term
+ //   half3 specular = Cs * reflect*specatten;
+//	specular *= pow( -HdotV, 3.0f / ((1.0f - _smooth)) ); //(0.000000134123f + (1.0f - _smooth))
+	
+	CONST float3 H2 = normalize(V+L);
+	half3 specular = half3(pow(saturate(dot(N,H2)), 40.0f));
+
+	
+    // Composite the final result, ensuring
+    // the values are >= 0.0f yields better results. Some
+    // combinations of inputs generate negative values which
+    // looks wrong when rendered...
+    diffuse  = max(half3(0.0f), diffusestr*diffuse*lightcolor.rgb );
+    specular = max(half3(0.0f), specularstr*specular*specularcolor.rgb*diffusecolor.rgb ); //*diffusecolor.rgb
+	//new : additive/multiply mix
+
+	CONST half3 addSpecular = specfunc*specular;
+	CONST half3 mulSpecular = (1.0 - specfunc)*specular;
+	diffuse = (diffuse + addSpecular) + (diffuse*mulSpecular);
+
+	//old style aditive only
+	//diffuse += specular; //diffuse += diffuse*specular;
+	
+    return diffuse;
+}
+
+#include <common_shadows.h>
+
+#ifndef DISABLE_SHADOW_HELPERS
+#ifndef OCULUS_SHADER
+#ifndef DISABLE_SHADOW_SUPPORT
+
+vec3 CSMColorCascades(in float depth)
+{
+	int cascadeIndex = -1;
+	for(int i = 0; i < 4; ++i) {
+		if(depth < V_csmthresholds[i]) {	
+			cascadeIndex = i;
+			break;
+		}
+	}
+	if (cascadeIndex == -1) {
+		return vec3(0.0f, 0.0f, 1.0f);
+	}
+	if (cascadeIndex == 0) {
+		return vec3(1.0f, 0.0f, 0.0f);
+	}
+	if (cascadeIndex == 1) {
+		return vec3(1.0f, 1.0f, 0.0f);
+	}
+	if (cascadeIndex == 2) {
+		return vec3(0.0f, 1.0f, 0.0f);
+	}
+	if (cascadeIndex == 3) {
+		return vec3(0.0f, 1.0f, 1.0f);
+	}
+	
+	return vec3(1.0f, 1.0f, 1.0f);
+}
+
+//vec3 csmDebugRender(in float ndotl)
+vec3 csmDebugRender(in float ndotl, in vec4 coords[5])
+{
+	
+	float z = IO_worldview_pos.z; // would not work for deferred
+	
+	vec4 weights = getCSMWeights(coords, ndotl);
+	//weights = getCSMWeightsChar(coords);
+	float w0 = weights.x;
+	float w1 = min(1.0f - weights.x, weights.y);
+	float w2 = min(1.0f - weights.y, weights.z);
+	float w3 = min(1.0f - weights.z, weights.w);
+	float w4 = 1.0f - (weights.w + weights.z + weights.y + weights.x); // recheck this one
+	w4 = 1 - saturate(w0 + w1 + w2 + w3);
+
+	
+	CONST vec3 c0color = vec3(4, 0,0);
+	CONST vec3 c1color = vec3(0, 4, 4);
+	CONST vec3 c2color = vec3(4, 0, 4);
+	CONST vec3 c3color = vec3(4, 4, 4);
+	CONST vec3 c4color = vec3(4, 4, 4);
+	
+	float ndotle = max(epsilon, ndotl);
+	
+#define CSM_DRAW_TEXELS
+
+	vec3 dbgcol = vec3(0);
+	dbgcol += c0color*w0;
+#ifdef CSM_DRAW_TEXELS
+	float t = floor(coords[0].x * F_shadowmapsize + 0.5f) + floor(coords[0].y * F_shadowmapsize + 0.5f);
+	float s0 = w0 * GetCSMSampleHard(T_shadowCSM0, coords[0].xyz + biasCSM[0] / ndotle);
+	if(mod(t, 2.0) == 0) dbgcol *= saturate(1.0f-w0+s0);
+#endif
+#ifdef D_USE_CSM_C1
+	dbgcol += c1color*w1;
+#ifdef CSM_DRAW_TEXELS
+	t = floor(coords[1].x * F_shadowmapsize + 0.5f) + floor(coords[1].y * F_shadowmapsize + 0.5f);
+	float s1 = w1 * GetCSMSampleHard(T_shadowCSM1, coords[1].xyz + biasCSM[1] / ndotle);
+	if(mod(t, 2.0) == 0) dbgcol *= saturate(1.0f-w1+s1);
+#endif
+#endif
+#ifdef D_USE_CSM_C2
+	dbgcol += c2color*w2;
+#ifdef CSM_DRAW_TEXELS
+	t = floor(coords[2].x * F_shadowmapsize + 0.5f) + floor(coords[2].y * F_shadowmapsize + 0.5f);
+	float s2 = w2 * GetCSMSampleHard(T_shadowCSM2, coords[2].xyz + biasCSM[2] / ndotle);
+	if(mod(t, 2.0) == 0) dbgcol *= saturate(1.0f-w2+s2);
+#endif
+#endif
+#ifdef D_USE_CSM_C3
+	dbgcol += c3color*w3;
+#ifdef CSM_DRAW_TEXELS
+	t = floor(coords[3].x * F_shadowmapsize + 0.5f) + floor(coords[3].y * F_shadowmapsize + 0.5f);
+	float s3 = w3 * GetCSMSampleHard(T_shadowCSM3, coords[3].xyz + biasCSM[3] / ndotle);
+	if(mod(t, 2.0) == 0) dbgcol *= saturate(1.0f-w3+s3);
+#endif
+#endif
+#ifdef D_USE_CSM_C4
+	dbgcol += c4color*w4;
+#ifdef CSM_DRAW_TEXELS
+	t = floor(coords[4].x * F_shadowmapsize + 0.5f) + floor(coords[4].y * F_shadowmapsize + 0.5f);
+	float s4 = w4 * GetCSMSampleHard(T_shadowCSM4, coords[4].xyz + biasCSM[4] / ndotle);
+	if(mod(t, 2.0) == 0) dbgcol *= saturate(1.0f-w4+s4);
+#endif
+#endif
+
+	//if(z>F_shadowmaxdistance)
+	//	dbgcol *= 0.0f;
+	//
+	//// draw cascade boundaries
+	//CONST float linetreshold = z/500.0f;
+	//
+	//for(int i=0; i<4; ++i) {
+	//	if(abs(z - V_csmthresholds[i]) < linetreshold)
+	//		dbgcol = vec3(100.0f);
+	//	// if(F_csm_blendstrength > 1.0f && abs(z - V_csmthresholds[i]) < linetreshold)
+	//	// 	dbgcol = vec3(100.0f, 0.0f, 100.0f);
+	//}
+
+	
+	return dbgcol;
+		}
+
+
+vec3 csmDebugRender(in float ndotl) {
+	vec4 coords[5];
+	return csmDebugRender(ndotl, coords);
+}
+
+
+
+
+// unified shadow interface
+// make also depend on B_shadow?
+
+float GetShadow(in float ndotl)
+{
+	// float z = RTResolve(T_gbuffer3).w;
+	float z = IO_worldview_pos.z; // would not work for deferred
+    
+	CONST float FADE_OUT_PERCENTAGE = 0.1;
+	float fade = saturate((z - (1.0 - FADE_OUT_PERCENTAGE) * F_shadowmaxdistance) / (FADE_OUT_PERCENTAGE * F_shadowmaxdistance));
+
+	// if(fade>0.99)
+	// 	return 1.0f;
+	
+	vec4 coords[5];
+	coords[0] = IO_texshadowCSM0;
+	coords[1] = IO_texshadowCSM1;
+	coords[2] = IO_texshadowCSM2;
+	coords[3] = IO_texshadowCSM3;
+	coords[4] = IO_texshadowCSM4;
+	return saturate(GetCSMShadow(ndotl, coords) + fade);
+}
+
+float GetShadow()
+{
+	return GetShadow(1.0f);
+}
+
+#endif //DISABLE_SHADOW_SUPPORT
+#endif //OCULUS_SHADER
+#endif //DISABLE_SHADOW_HELPERS
+
+// #else /*GFX_VULKAN*/
+/*
+float GetShadow(in float ndotl)
+{
+	return 1.0f;
+}
+
+float GetShadow()
+{
+	return 1.0f;
+}
+
+#endif*/
+
+//-------------------------------------------------------------------------------
+// Lighting/Shadow defines ( pixel-shader specific )
+//-------------------------------------------------------------------------------
+
+#define CALC_AMBIENT(DIFFUSE, AMBIENT, OUT_COLOR)														\
+	OUT_COLOR += AMBIENT * DIFFUSE;
+
+
+#define CALC_GLOBAL_DIRLIGHT(NR, LIGHTFUNCTION) 														\
+	if (V_lightcolor##NR.a > 0.0)																	\
+	{																									\
+		half4 DirLightColor_Ex = V_lightcolor##NR.rgba;											\
+    	DirLightColor_Ex.rgb = TO_linearRGB(DirLightColor_Ex.rgb);										\
+    	DirLightColor_Ex.rgb *= (DirLightColor_Ex.a * F_globallightscale);								\
+       	half2 DiffSpecTerms = LIGHTFUNCTION(Normal, V_direction##NR.rgb, VertexToEye, LightPower.xy); 	\
+		DiffuseLight.rgb += DirLightColor_Ex.rgb * DiffSpecTerms.x; 									\
+		SpecularLight.rgb += DirLightColor_Ex.rgb * DiffSpecTerms.y;									\
+	}
+
+#define CALC_GLOBAL_DIRLIGHT_SHADOW(NR, LIGHTFUNCTION_GLOBAL, LIGHT_POWER, IN_OUT_DIFFUSE, IN_OUT_SPECULAR, SHADOW) 	\
+	if (V_lightcolor##NR.a > 0.0)																		\
+	{																										\
+		half4 DirLightColor_Ex = V_lightcolor##NR.rgba;												\
+    	DirLightColor_Ex.rgb = TO_linearRGB(DirLightColor_Ex.rgb);											\
+    	DirLightColor_Ex.rgb *= (DirLightColor_Ex.a * F_globallightscale);									\
+       	half2 DiffSpecTerms = LIGHTFUNCTION_GLOBAL(Normal.xyz, V_direction##NR.xyz, VertexToEye, LIGHT_POWER); 	\
+       	DiffSpecTerms.x *= saturate(SHADOW * 0.9 + 0.1); /* sum to 1.0, 10% light still at shadow) */		\
+       	DiffSpecTerms.y *= saturate(SHADOW * SHADOW); /* we dont want specular in shadow areas */			\
+		IN_OUT_DIFFUSE.rgb += DirLightColor_Ex.rgb * DiffSpecTerms.x; 									\
+		IN_OUT_SPECULAR.rgb += DirLightColor_Ex.rgb * DiffSpecTerms.y; 									\
+	}
+
+#define CALC_STRAUSS_DIRLIGHT_SHADOW(NR, DIFFUSE, F0, SHADOW, OUT_COLOR)								\
+	if (V_lightcolor##NR.a > 0.0)																	\
+	{																									\
+		half4 LightColor = V_lightcolor##NR.rgba;													\
+    	LightColor.rgb = TO_linearRGB(LightColor.rgb) * LightColor.a * F_globallightscale;				\
+		CONST float specstr = S_specularstr * (TexSpecularStr.g )* SHADOW * SHADOW*12.0f;								\
+		CONST float diffstr = S_diffusestr * saturate(SHADOW * 0.9 + 0.1);									\
+		OUT_COLOR.rgb += calc_StraussNew(Normal.rgb, V_direction##NR.rgb, VertexToEye, 						\
+										U_mat_smoothness, U_mat_metallness, diffstr, specstr, 		0.5,				\
+										LightColor.rgb, DIFFUSE, F0); 								\
+	/*	OUT_COLOR.rgb *= 0.0001; OUT_COLOR.rgb += half3(specstr);*/	\
+	}
+	
+#define CALC_STRAUSS_DIRLIGHT_2_SHADOW(NR, DIFFUSE, SPECULAR, F0, SHADOW, OUT_COLOR)								\
+	if (V_lightcolor##NR.a > 0.0)																	\
+	{																									\
+		half4 LightColor = V_lightcolor##NR.rgba;													\
+    	LightColor.rgb = TO_linearRGB(LightColor.rgb) * LightColor.a * F_globallightscale;				\
+		CONST float specstr = S_specularstr * (TexSpecularStr.g )* SHADOW * SHADOW*6.0f;								\
+		CONST float diffstr = S_diffusestr * saturate(SHADOW * 0.9 + 0.1);									\
+		OUT_COLOR.rgb += calc_StraussNew2(Normal, V_direction##NR.rgb, VertexToEye, 						\
+										U_mat_smoothness, U_mat_metallness, diffstr, specstr, 		0.5,				\
+										LightColor.rgb, DIFFUSE, F0,SPECULAR); 								\
+	}
+
+#define CALC_STRAUSS_DIRLIGHT_COCKPIT_SHADOW(NR, DIFFUSE, F0, SHADOW, OUT_COLOR)							\
+	if (V_lightcolor##NR.a > 0.0)																		\
+	{																										\
+		half4 LightColor = V_lightcolor##NR.rgba;															\
+    	LightColor.rgb = TO_linearRGB(LightColor.rgb) * LightColor.a * F_globallightscale*0.5;				\
+		CONST float specstr = S_specularstr * (TexSpecularStr.g )* SHADOW * SHADOW*256.0f;					\
+		CONST float diffstr = S_diffusestr * saturate(SHADOW * 0.9 + 0.1);									\
+		OUT_COLOR.rgb += calc_StraussNew(Normal, V_direction##NR.rgb, VertexToEye, 						\
+										U_mat_smoothness, U_mat_metallness, diffstr, specstr, 1.0,			\
+										LightColor.rgb, DIFFUSE, F0); 										\
+	}
+
+#define CALC_GLOBAL_DIRLIGHT_PLANET(NR, LIGHTFUNCTION) \
+	if (V_lightcolor##NR.a > 0.0)									\
+	{																	\
+		half4 DirLightColor_Ex = V_lightcolor##NR.rgba;			\
+    	DirLightColor_Ex.rgb = TO_linearRGB(DirLightColor_Ex.rgb);		\
+    	DirLightColor_Ex.rgb *= (DirLightColor_Ex.a * 0.15); /* HACK layer multiply + HDR = bad idea */					\
+       	half2 DiffSpecTerms = LIGHTFUNCTION(Normal, V_direction##NR.xyz, VertexToEye, LightPower.xy ); \
+		DiffuseLight.rgb += DirLightColor_Ex.rgb * DiffSpecTerms.x; 	\
+		SpecularLight.rgb += DirLightColor_Ex.rgb * DiffSpecTerms.y;	\
+	}																	
+
+#define CALC_STRAUSS_PLANET_DIRLIGHT(NR, DIFFUSE, F0, OUT_COLOR)												\
+	if (V_lightcolor##NR.a > 0.0)																	\
+	{																									\
+		half4 LightColor = V_lightcolor##NR.rgba;													\
+    	LightColor.rgb = TO_linearRGB(LightColor.rgb) * LightColor.a * F_globallightscale;				\
+		float specstr = S_specularstr * (TexSpecularStr.g)*12.0f;												\
+		float diffstr = S_diffusestr;																	\
+		OUT_COLOR.rgb += calc_StraussNew(Normal, V_direction##NR.xyz, VertexToEye, 						\
+										Smoothness2, Metallness2, diffstr, specstr, 0.0	,					\
+										LightColor.rgb, DIFFUSE, F0);								\
+	/*	OUT_COLOR.rgb *= 0.0001; OUT_COLOR.rgb += LightColor.xyz/ 10;*/	\
+	}
+
+
+#define CALC_STRAUSS_2ND_DIRLIGHT(NR, DIFFUSE, F0, OUT_COLOR)												\
+	if (V_lightcolor##NR.a > 0.0)																	\
+	{																									\
+		half4 LightColor = V_lightcolor##NR.rgba;													\
+		LightColor.rgb = TO_linearRGB(LightColor.rgb) * LightColor.a * F_globallightscale;				\
+		CONST float specstr = S_specularstr * (TexSpecularStr.g)*4.0f;												\
+		CONST float diffstr = S_diffusestr;																	\
+		OUT_COLOR.rgb += calc_StraussNew(Normal, V_direction##NR.xyz, VertexToEye, 						\
+										U_mat_smoothness, U_mat_metallness, diffstr, specstr, 	1.0,					\
+										LightColor.rgb, DIFFUSE, F0);								\
+	}
+
+#ifdef P1_SHADERS
+
+float4 calc_Strauss_PBR(	CONST float3 N, 
+					CONST float3 L, 
+					CONST float3 V, 
+					CONST float fSmoothness, 
+					CONST float fMetalness,
+					CONST float fTransparency,
+					CONST float refractionIndex,
+					CONST half3 lightcolor,
+					CONST half3 cDiffuse
+					)
+{
+	// Make sure the interpolated inputs and
+	// constant parameters are normalized
+	float3 n = N;//normalize( N );
+	float3 l =normalize( L );
+	float3 v = V;//normalize( V );
+	float3 h = reflect( l, n );
+
+	// Declare any aliases:
+	float NdotL   = dot( n, l );
+	float NdotV   = dot( n, v );
+	float HdotV   = dot( h, v );
+	float fNdotL  = fresnel_a( NdotL );
+	float s_cubed = fSmoothness * fSmoothness * fSmoothness;
+
+	//	return float4(fNdotL,fNdotL,fNdotL,1.0f);
+
+	// Evaluate the diffuse term
+	float d  = ( 1.0f - fMetalness * fSmoothness );
+	float Rd = ( 1.0f - s_cubed ) * ( 1.0f - fTransparency );
+	float3 diffuse = NdotL * d * Rd * cDiffuse  * lightcolor;
+
+	// Compute the inputs into the specular term
+	float r = ( 1.0f - fTransparency ) - Rd;
+
+	float j = fNdotL * shadow( NdotL ) * shadow( NdotV );
+
+	// 'k' is used to provide small off-specular
+	// peak for very rough surfaces. Can be changed
+	// to suit desired results...
+	CONST float k = 0.01f;
+	float reflect = min( 1.0f, r + j * ( r + k ) );
+
+	float3 C1 = float3( 1.0f, 1.0f, 1.0f );
+	float3 Cs = C1 + fMetalness * (1.0f - fNdotL) * (cDiffuse - C1);
+
+
+	// Evaluate the specular term
+	float3 specular = Cs * reflect;
+	specular *= pow( -HdotV, 3.0f / (1.0f - fSmoothness) );
+	//below: test to tint spec more to material color
+	specular = specular * (1.1f-fMetalness)+ specular*(fMetalness+0.1f)*cDiffuse * lightcolor;
+	// Composite the final result, ensuring
+	// the values are >= 0.0f yields better results. Some
+	// combinations of inputs generate negative values which
+	// looks wrong when rendered...
+	diffuse  = max( float3(0.0f), diffuse );
+	specular = max( float3(0.0f), specular*2.0f *  float3(lambert_half(NdotL, 2.2)) );
+	// return float4(specular, 1.0f );
+	return float4( diffuse + specular, luminance(specular));
+}
+
+	float4 calc_Strauss_PBR_aniso(	CONST float3 N,
+					CONST float3 L,
+					CONST float3 V,
+					CONST float fSmoothness,
+					CONST float fMetalness,
+					CONST float fTransparency,
+					CONST float refractionIndex,
+					CONST half3 lightcolor,
+					CONST half3 cDiffuse,
+					float2 fAnisotropicRoughness
+					)
+	{
+		// Make sure the interpolated inputs and
+		// constant parameters are normalized
+		float3 n = N;//normalize( N );
+		float3 l =normalize( L );
+		float3 v = V;//normalize( V );
+		float3 h = reflect( l, n );
+		float3 h2 = normalize( l + v );
+
+		// Declare any aliases:
+		float NdotL   = dot( n, l );
+		float NdotV   = dot( n, v );
+		float HdotV   = dot( h, v );
+		float fNdotL  = fresnel_a( NdotL );
+		float s_cubed = fSmoothness * fSmoothness * fSmoothness;
+
+		// Apply a small bias to the roughness
+		// coefficients to avoid divide-by-zero
+		fAnisotropicRoughness += float2( 1e-5f, 1e-5f );
+
+		// Define the coordinate frame
+		float3 epsilon   = float3( 1.0f, 0.0f, 0.0f );
+		float3 tangent   = normalize( cross( n, epsilon ) );
+		float3 bitangent = normalize( cross( n, tangent ) );
+		// float VdotN = dot( v, n );
+		// float LdotN = dot( l, n );
+		float H2dotN = dot( h2, n );
+
+		float H2dotT = dot( h2, tangent );
+		float H2dotB = dot( h2, bitangent );
+
+		// Evaluate the specular exponent
+		float beta_a  = H2dotT / fAnisotropicRoughness.x;
+		beta_a       *= beta_a;
+
+		float beta_b  = H2dotB / fAnisotropicRoughness.y;
+		beta_b       *= beta_b;
+
+		float beta = -2.0f * ( ( beta_a + beta_b ) / ( 1.0f + H2dotN ) );
+
+		// Evaluate the specular denominator
+		float s_den  = 4.0f * 3.14159f; 
+		s_den       *= fAnisotropicRoughness.x;
+		s_den       *= fAnisotropicRoughness.y;
+		s_den       *= sqrt( abs(NdotL * NdotV) );	//<Timon> I had to add the abs because apparently in HLSL sqrt of negative values is fine
+
+		// Compute the final specular term
+		//float3 Specular = Ps * ( exp( beta ) / s_den );
+
+
+		// Evaluate the diffuse term
+		float d  = ( 1.0f - fMetalness * fSmoothness );
+		float Rd = ( 1.0f - s_cubed ) * ( 1.0f - fTransparency );
+		float3 diffuse = NdotL * d * Rd * cDiffuse * lightcolor;
+
+		// Compute the inputs into the specular term
+		float r = ( 1.0f - fTransparency ) - Rd;
+
+		float j = fNdotL * shadow( NdotL ) * shadow( NdotV );
+
+		// 'k' is used to provide small off-specular
+		// peak for very rough surfaces. Can be changed
+		// to suit desired results...
+		CONST float k = 0.01f;
+		float reflect = min( 1.0f, r + j * ( r + k ) );
+
+		float3 C1 = float3( 1.0f, 1.0f, 1.0f );
+		float3 Cs = C1 + fMetalness * (1.00001f - fNdotL) * (cDiffuse - C1);
+
+		// Evaluate the specular term
+		float3 specular;
+// 		specular = Cs * reflect;
+// 		specular *= pow( -HdotV, 3.0f / (1.00001f - fSmoothness) );
+	//	specular = C1*NdotL*( exp( beta ) / s_den);
+		specular = float3( exp( beta ) / s_den) * float3(fSmoothness+0.001f);
+		//to tint spec more to material color
+		specular = (specular * saturate(1.00001f-fMetalness)+ specular*saturate(fMetalness+0.0001f)*cDiffuse) * lightcolor ;
+		//specular = (specular * saturate(1.00001f-pow(fMetalness,0.1f))+ specular*saturate(pow(fMetalness,0.1f)+0.0001f)*cDiffuse) * lightcolor ;
+	
+		// Composite the final result, ensuring
+		// the values are >= 0.0f yields better results. Some
+		// combinations of inputs generate negative values which
+		// looks wrong when rendered...
+		diffuse  = max( float3(0.0f), diffuse );
+		specular = max( float3(0.0f), specular *  lambert_half(NdotL, 6.2) );
+		//specular = max( 0.0f, specular*(30.0f+15.0f*fMetalness) *  lambert_half(NdotL, 2.2) );
+		//return float4(specular, 1.0f );
+		return saturate(float4( diffuse + specular, luminance(specular) ));
+	}
+
+	#define CALC_STRAUSS_PBR_ANI(NR, DIFFUSE, OUT_COLOR)												\
+	if (V_lightcolor##NR.a > 0.0)																		\
+	{																									\
+		half4 LightColor = V_lightcolor##NR.rgba;														\
+    	LightColor.rgb = TO_linearRGB(LightColor.rgb) * LightColor.a * F_globallightscale;				\
+		CONST float transparency = 0.0f;																\
+		CONST float refraction = 1.0f;																	\
+		OUT_COLOR.rgb += calc_Strauss_PBR_aniso(Normal, V_direction##NR.rgb, VertexToEye, 			\
+										SmoothnessVal, MetalnessVal, transparency, refraction,			\
+										LightColor.rgb, DIFFUSE,SmoothnessVal);							\
+	}
+
+	#define CALC_STRAUSS_PBR_ANI2(NR, DIFFUSE, OUT_COLOR)												\
+	{																									\
+		half4 LightColor = V_lightcolor##NR.rgba;														\
+    	LightColor.rgb = (LightColor.rgb) * F_globallightscale;											\
+		CONST float transparency = 0.0f;																\
+		CONST float refraction = 0.0f;																	\
+		OUT_COLOR.rgb += calc_Strauss_PBR_aniso(Normal, V_direction##NR.rgb, VertexToEye, 			\
+										SmoothnessVal, MetalnessVal, transparency, refraction,			\
+										LightColor.rgb, DIFFUSE,fAnisotropicRoughness).rgb;					\
+	}
+
+	#define CALC_STRAUSS_PBR_ANI2_DIRLIGHT(NR, DIFFUSE, F0, OUT_COLOR)												\
+		{																									\
+			half4 LightColor = V_lightcolor##NR.rgba;													\
+			LightColor.rgb = (LightColor.rgb) * F_globallightscale;				\
+			CONST float transparency = 0.0f;																\
+			CONST float refraction = 0.0f;																\
+			OUT_COLOR.rgb += calc_Strauss_PBR_aniso(Normal, V_direction##NR.xyz, VertexToEye, 						\
+											SmoothnessVal, MetalnessVal, transparency, refraction,						\
+											LightColor.rgb, DIFFUSE, fAnisotropicRoughness).rgb;								\
+		}
+	#define CALC_STRAUSS_PBR_TRANSP_DIRLIGHT(NR, DIFFUSE, ALPHA, OUT_COLOR)												\
+		{																									\
+			half4 LightColor = V_lightcolor##NR.rgba;													\
+			LightColor.rgb = (LightColor.rgb) * F_globallightscale;				\
+			CONST float transparency = 1.0f-ALPHA;																\
+			CONST float refraction = 0.0f;																\
+			CONST float SmoothnessVal = 0.20f;																\
+			CONST float MetalnessVal = 0.0f;																\
+			CONST float2 fAnisotropicRoughness = float2(0.75f,0.75f);											\
+			OUT_COLOR.rgb += calc_Strauss_PBR_aniso(Normal, V_direction##NR.xyz, VertexToEye, 						\
+											SmoothnessVal, MetalnessVal, transparency, refraction,						\
+											LightColor.rgb, DIFFUSE,fAnisotropicRoughness).rgb;								\
+		}
+	
+#endif
+
+#include <jon_mod_lighting_functions.h>
+
+vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metalness, in float Roughness, bool dossr, vec4 prev)
+{
+	vec3 wv = normalize(-view_pos) * mat3(M_view);
+	vec3 wr = reflect(-wv, wn);
+
+	float ambient_occlusion = 1.0f;
+	// ambient_occlusion = mix(1, Shadow, n_dot_l); // ambient attenuation wrt. shadow (sometimes "weird")
+	ambient_occlusion = GetSSAO();
+	
+	// vec3 cspec = mix(vec3(0.04), Albedo, Metalness);
+	// vec3 cdiff = Albedo * (1-Metalness);
+	vec3 cspec = vec3(0);
+	vec3 cdiff = vec3(0);
+	get_colors(Albedo, Metalness, cspec, cdiff);
+	// vec3 cdiff = Albedo * saturate(1.0f - luminance(cspec)); // alt energy conservation
+	
+	// dirlight data
+	vec3 ldirs[2];
+	vec3 lcolors[2];
+	float direct_occlusions[2];
+
+	ldirs[0] = normalize(V_direction1.xyz);
+	ldirs[1] = normalize(V_direction2.xyz);
+
+#ifdef LOCALSPEC
+	lcolors[0] = XR_TO_linearRGB(V_lightcolor1.rgb) * F_globallightscale*2.0f;
+	lcolors[1] = XR_TO_linearRGB(V_lightcolor2.rgb) * F_globallightscale*2.0f;
+#else
+	lcolors[0] = XR_TO_linearRGB(V_lightcolor1.rgb) * F_globallightscale;
+	lcolors[1] = XR_TO_linearRGB(V_lightcolor2.rgb) * F_globallightscale;
+#endif
+#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
+	lcolors[0] = vec3(1.0, 0.0, 0.0);
+	lcolors[1] = vec3(1.0, 0.0, 0.0);
+#endif 
+	for (int i = 0; i < 2; ++i) {
+		direct_occlusions[i] = saturate(dot(ldirs[i], wn));
+	}
+	
+	//vec3 l = mat3(M_view) * normalize(V_direction1.xyz);
+
+	// shadows for mainlight
+	float Shadow = 0.0f;
+	vec4 test = vec4(0);
+#ifdef JON_MOD_SSSHADOWS
+	float fade = 0.0;
+#endif 		
+	
+#ifndef DISABLE_SHADOW_HELPERS
+#ifndef DISABLE_SHADOW_SUPPORT
+	if (B_shadow && direct_occlusions[0] > 0.0f) {
+		float ndotle = max(epsilon, direct_occlusions[0]);
+		CONST float FADE_STR = 0.1;
+		CONST float FADE_STR_DIST = 0.5;
+		if (F_shadowmaxdistance < 6000.0f) {
+			FADE_STR_DIST = 0.7;
+		}
+		#ifdef JON_MOD_SSSHADOWS
+			fade = saturate((length(view_pos) - (1.0 - FADE_STR) * F_shadowmaxdistance) / (FADE_STR_DIST * F_shadowmaxdistance));
+		#else
+			float fade = saturate((length(view_pos) - (1.0 - FADE_STR) * F_shadowmaxdistance) / (FADE_STR_DIST * F_shadowmaxdistance));
+		#endif
+
+		vec4 coords[5];
+		coords[0] = mul(float4(view_pos, 1), M_shadowCSM0);
+		coords[1] = mul(float4(view_pos, 1), M_shadowCSM1);
+		coords[2] = mul(float4(view_pos, 1), M_shadowCSM2);
+		coords[3] = mul(float4(view_pos, 1), M_shadowCSM3);
+		coords[4] = mul(float4(view_pos, 1), M_shadowCSM4);
+		direct_occlusions[0] *= saturate(fade + GetCSMShadow(direct_occlusions[0], coords));
+		
+	/*	vec4 weights = getCSMWeights(coords);
+		float w0 = weights.x;
+		float w1 = min(1.0f-weights.x, weights.y);
+		float w2 = min(1.0f-weights.y, weights.z);
+		float w3 = min(1.0f-weights.z, weights.w);
+		float w4 = 1.0f - (weights.w+weights.z+weights.y+weights.x); // recheck this one
+		w4 = 1 - saturate(w0+w1+w2+w3);
+		
+// 		direct_occlusions[0] *= GetCSMSample3Taps(T_shadowCSM2, mul(float4(view_pos, 1), M_shadowCSM2).xyz + biasC2/ndotle);
+// 		direct_occlusions[0] *= GetCSMSample3Taps(T_shadowCSM3, mul(float4(view_pos, 1), M_shadowCSM3).xyz + biasC3/ndotle);
+		
+// 		Shadow += GetCSMSample3Taps(T_shadowCSM2, mul(float4(view_pos, 1), M_shadowCSM2).xyz + biasC2/ndotle);
+		
+// 			Shadow += w0 * GetCSMSample3Taps(T_shadowCSM0, coords[0].xyz + biasC0/ndotle);
+// 			Shadow += w1 * GetCSMSample3Taps(T_shadowCSM1, coords[1].xyz + biasC1/ndotle);
+// 			Shadow += w2 * GetCSMSample3Taps(T_shadowCSM2, coords[2].xyz + biasC2/ndotle);
+// 			Shadow += w3 * GetCSMSample2Taps(T_shadowCSM3, coords[3].xyz + biasC3/ndotle);
+// 			Shadow += w4 * GetCSMSampleFast(T_shadowCSM4, coords[4].xyz + biasC4/ndotle);
+		
+		direct_occlusions[0] *= saturate(Shadow);
+// 		test = getCSMWeights(coords);
+// 		test = coords[1];/**/
+	}
+#endif
+#endif
+
+	// light accumulation
+	vec3 light_accum = vec3(0);
+#ifdef JON_MOD_SSSHADOWS
+	vec3 ss_shadow_debug = vec3(0.0);
+#endif	
+	// dirlights
+	for(int i=0; i<2; i++) {
+		//float n_dot_l = saturate(dot(Normal, ldirs[i]));
+		//float direct_occlusion = n_dot_l;
+		//if(i==0) { // only attenuation for 1st light
+		//	direct_occlusion *= Shadow;
+		//}
+		CONST float light_radius = V_deferred_lightparams.x*10; // dbg scale
+
+		float ss_shadow = 1.0;
+		
+		#ifdef JON_MOD_SSSHADOWS
+			float fade_near = saturate(-(length(view_pos) - JON_MOD_SSSHADOWS_FADE_DISTANCE_NEAR) / (JON_MOD_SSSHADOWS_FADE_DISTANCE_NEAR * 0.5));
+			fade = max(fade, saturate((length(view_pos) - (1.0 - 0.1) * JON_MOD_SSSHADOWS_FADE_DISTANCE) / (0.5 * JON_MOD_SSSHADOWS_FADE_DISTANCE)));
+			#ifdef JON_MOD_SSSHADOWS_DEBUG_MODE
+				ss_shadow_debug.r = direct_occlusions[JON_MOD_SSSHADOWS_LIGHT_TO_DEBUG] * (fade_near + fade);
+				ss_shadow_debug.b = direct_occlusions[JON_MOD_SSSHADOWS_LIGHT_TO_DEBUG];
+			#endif
+			//screenspace shadow
+			if((direct_occlusions[i] * (fade_near + fade)) > 0.001)
+			{
+				#ifndef JON_MOD_SSSHADOWS_SUPPORT_BOTH_PRIMARY_LIGHTS
+				if(i > 0)
+					continue;
+				#endif
+				
+				#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
+					if(GetViewPos().x > 0.0)
+				#endif
+				ss_shadow = ScreenSpaceShadows(	world2view_rot(-ldirs[i]), 
+															vec2(fade_near, fade), 
+															ss_shadow_debug);
+			}
+			#ifdef JON_MOD_SSSHADOWS_FILTER
+				#if 1
+					ss_shadow = mix(ss_shadow, 0.5, saturate((fwidth(ss_shadow))));
+				#else
+					ss_shadow = mix(ss_shadow, 0.5, saturate(max(abs(dFdxFine(ss_shadow)), abs(dFdyFine(ss_shadow)))));
+				#endif
+			#endif
+		#endif
+		direct_occlusions[i] *= ss_shadow;
+
+		// todo: slightly refactor the following
+		vec3 L;
+		vec3 E_sph = direct_occlusions[i] * lcolors[i] * EvalSphereLight(light_radius, ldirs[i] * 1000, wv, wn, wr, Roughness, L);
+		//E_sph *= PI; // diffuse normalization
+		L = normalize(L);
+		light_accum += EvalBRDF(cspec, cdiff, Roughness, L, wv, wn, vec2(0, 1)) * E_sph; // specular
+		
+		// clearcoat
+		//float clearcoat_spec = cc * EvalBRDF(vec3(0.05), cdiff, 0.1, L, v, Normal2, vec2(0,1)).r; // ok since dielectric reflection
+		//light_accum += clearcoat_spec * E_sph;
+
+		//vec3 E_diffuse = direct_occlusions[i] * ambient_occlusion * lcolors[i];
+		//light_accum += cdiff / PI * E_diffuse; // diffuse
+		//light_accum += cdiff * E_diffuse; // diffuse
+	}
+	{// ambient light
+		// reduce roughness based on v_dot_n yields nicer fresnel contours
+		float v_dot_n = saturate(dot(wv, wn));
+		
+		/*
+		Jon Note if anyone from Egosoft ever reads this, I would stronly recommend against this!! 
+		None of the AAA engines does it. It leads to insane levels of specular aliasing, even with TAA.
+		And the high anisotropic strething reflections you're trying to acomplish with it can't be achieved like this.
+		It is technically possible to stretch the derivatives for a textureCUBEgrad() however. ;)
+		*/
+		#ifdef JON_MOD_DISABLE_EGOSOFT_SMOOTHER_GRAZING_ANGLE
+			#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
+				float ambRoughness = GetViewPos().x > 0.0 ? Roughness : mix(Roughness*0.3, Roughness, pow(v_dot_n, 1.0/3.0));	
+			#else				
+				float ambRoughness = Roughness;
+			#endif
+		#else
+			// smaller cone at edges to highlight fresnel
+			float ambRoughness = mix(Roughness*0.3, Roughness, pow(v_dot_n, 1.0/3.0));
+			//ambRoughness = Roughness; // deactivated, effect too strong
+		#endif		
+
+		// vec3 spec_amb =  simple_spec_brdf_ibl(T_ibl_envmap, cspec, Roughness, wn, wv);
+		// vec3 spec_amb =  spec_brdf_ibl(T_ibl_envmap, vec3(0,0,0), T_preintegrated_GGX, cspec, ambRoughness, wn, wv);
+		vec3 Eamb = V_ambient1.rgb;//Flat color in the age of PBR :(
+
+		//TODO SSR has higher priority!
+		vec4 ssr = vec4(0);
+		if (dossr) {
+			ssr = RTResolveSoft(T_ssr);
+			ssr.a = SSR_GetHit(ssr.a);
+// 			ssr *= (1 - ambRoughness);
+// 			ssr.rgb *= cspec;
+// 			float n_dot_v = saturate(dot(wn, wv));
+
+// 			vec2 env_brdf = textureLod(T_preintegrated_GGX, vec2(ambRoughness, n_dot_v), 0).xy;
+			// return vec3(env_brdf, 0);
+// 			ssr.rgb *= (cspec*env_brdf.x + env_brdf.y);
+		}
+
+		#ifdef JON_MOD_USE_RETROREFLECTIVE_DIFFUSE_MODEL
+			#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
+				if(GetViewPos().x > 0.0)
+				{
+					light_accum += combined_ambient_brdf(T_ibl_envmap, cspec, cdiff, wn, wv, ambRoughness, ambient_occlusion, ssr, Eamb);
+				}
+				else
+				{
+					float a = ssr.a;
+					vec3 first_sum = a * ssr.rgb;
+			
+					a += prev.a;
+					first_sum += saturate(1 - a) * spec_first_sum_ibl(T_ibl_envmap, ambRoughness, wn, wv).rgb;
+					first_sum += Eamb;
+					vec3 spec_amb = spec_brdf(first_sum, cspec, ambRoughness, v_dot_n);
+					vec3 diff_amb = saturate(1 - prev.a) * cdiff * (get_irradiance(T_ibl_envmap, wn) + Eamb);
+			
+					light_accum += (spec_amb + diff_amb) * ambient_occlusion;			
+				}
+			#else
+				light_accum += combined_ambient_brdf(T_ibl_envmap, cspec, cdiff, wn, wv, ambRoughness, ambient_occlusion, ssr, Eamb);
+			#endif
+		#else
+			float a = ssr.a;
+			vec3 first_sum = a * ssr.rgb;
+	
+			a += prev.a;
+			first_sum += saturate(1 - a) * spec_first_sum_ibl(T_ibl_envmap, ambRoughness, wn, wv).rgb;
+			first_sum += Eamb;
+			vec3 spec_amb = spec_brdf(first_sum, cspec, ambRoughness, v_dot_n);
+			vec3 diff_amb = saturate(1 - prev.a) * cdiff * (get_irradiance(T_ibl_envmap, wn) + Eamb);
+	
+			light_accum += (spec_amb + diff_amb) * ambient_occlusion;
+		#endif
+	}
+	
+	light_accum = clamp(light_accum.rgb, 0, 10); // safety clamp, not visible
+	#ifdef JON_MOD_SSSHADOWS_DEBUG_MODE
+		light_accum = ss_shadow_debug;
+	#endif
+	return DEFERRED_HACK_TO_sRGB(light_accum);//Jon No, we already acounted for this!// * ambient_occlusion;	//TODO why is there a double ambient_occlusion multiply?!
+}
+
+vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metalness, in float Roughness, bool dossr)
+{
+	return global_lights(wn, view_pos, Albedo, Metalness, Roughness, dossr, vec4(0));
+}
+
+#include <common_envmap.h>
+
+#if SHADERFLAGS & SHADERFLAG_FORWARD_ENVMAP_PROBES
+
+// // #define GLASS_PROBE_BLENDING_DEBUG /* def or ndef */
+// WARNING also uncomment the undef below for safety
+
+vec4 global_envmap_resolve_glass(vec3 wn, vec3 wv, float Roughness, float shadow)
+{
+	//TODO @Timon/Florian the below sampling math seems "a bit sketchy" and has somewhat specific to the glass shader,
+	// would be nice to generalize it into multiple functions, at least one with proper math? further and do the proper math if we ever have a use-case for it?
+	vec3 wpos = GetFragWorld();
+	half3 R = reflect(-wv, wn);
+	vec4 env = vec4(0);
+#ifdef GLASS_PROBE_BLENDING_DEBUG
+	vec3 col = vec3(0);
+#endif
+	for (uint i = 0; i < U_envmapprobe_num; ++i) {
+		// spec str,rgb vs luminosity, aka bright areas reflect more than dark, "shiny" also reflect more -> spec str?
+		//ColorEnvi.rgb += S_environmentstr * textureLod/*texCUBE*/(T_ibl_envmap, R_Eye,Roughness*MaxSpecularLevel(T_ibl_envmap)).rgb * ((saturate(1.0f-pow(dot(Normal,VertexToEye),0.5f))+0.1)/1.1f)*(1.0-ColorBaseDiffuse.a);
+		vec3 r = R;
+		r = EnvMapAdjust(i, wpos, r);
+		vec4 e = textureLod(S_environment_map[i], r, Roughness * MaxSpecularLevel(S_environment_map[i]) + 0.50); //TODO darkening, etc?? like for dirt border
+		float fade = EnvMapFading(i);
+		e *= fade;
+		// only multiply rgb here, so we still block the cluster envmap from shining through geometry
+		e.rgb *= U_envmapprobe_insideglassfadein;
+
+#ifdef GLASS_PROBE_BLENDING_DEBUG
+		col += V_envmapprobe_color[i].rgb * fade * (1 - env.a);
+#endif
+		// e.a = 1; return e;
+		env += e * (1 - env.a);
+	}
+#ifdef GLASS_PROBE_BLENDING_DEBUG
+	DebugStore(vec4(col, 0.2f));
+#endif
+	{
+		vec4 e = textureLod(T_ibl_envmap, R, Roughness * MaxSpecularLevel(T_ibl_envmap) + 0.50) * shadow; //TODO darkening, etc?? like for dirt border
+		e.rgb *= U_envmapprobe_insideglassfadein;
+		env += e * (1 - env.a);
+	}
+	return env;
+}
+
+// #undef GLASS_PROBE_BLENDING_DEBUG
+
+#endif
