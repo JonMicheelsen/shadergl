@@ -149,7 +149,7 @@ void main()
 	
 #ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	float Index = 0.5;
-	GENERAL_OUTPUT_SUBSURFACE(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SubsurfaceVal, Index, SmoothnessVal, ColorGlow);
+	GENERAL_OUTPUT_SUBSURFACE(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SubsurfaceVal, SmoothnessVal, ColorGlow);
 #else
 	
 	GENERAL_OUTPUT(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SmoothnessVal, ColorGlow);
