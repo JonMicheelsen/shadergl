@@ -16,10 +16,10 @@
 // Human skin highest index of refraction(IOR)1.55 = 0.58 in unreal specular, or #94, rgb148, 58%brightness, as linear color
 // Human hair(and nails technically too) highest index of refraction(IOR)1.55 = 0.58 in unreal specular, or #94, rgb148,
 // Specular scale is 0.08, so (0.28 * 0.08), etc...
-//#define JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
-//	#define JON_MOD_SUBSURFACE_SUBDERMAL_ROUGHNESS 0.5
-//	#define JON_MOD_SUBSURFACE_EPIDERMAL_ROUGHNESS -0.1
-//	#define JON_MOD_SUBSURFACE_EPIDERMAL_F0 0.0224f
+#define JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+	#define JON_MOD_SUBSURFACE_SUBDERMAL_ROUGHNESS 0.5
+	#define JON_MOD_SUBSURFACE_EPIDERMAL_ROUGHNESS -0.1
+	#define JON_MOD_SUBSURFACE_EPIDERMAL_F0 0.0224f
 
 #define JON_MOD_USE_RETROREFLECTIVE_DIFFUSE_MODEL//This upgrades EvalBRDF() to include this https://advances.realtimerendering.com/s2018/MaterialAdvancesInWWII-course_notes.pdf Which UE5 also uses.
 	#define JON_MOD_USE_AMBIENT_DIFFUSE_TRICKS

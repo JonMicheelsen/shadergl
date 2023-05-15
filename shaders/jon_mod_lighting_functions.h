@@ -107,6 +107,25 @@ vec3 chan_diff(vec3 cdiff, float a2, float n_dot_v, float n_dot_l, float v_dot_h
 	return cdiff * (INVPI * (fd + fb));
 	
 }
+vec3 sss(float n_dot_l_raw, float subsurface)
+{
+	float n_dot_l = saturate(n_dot_l_raw);
+	float n_dot_l_inv = saturate(-n_dot_l_raw);
+	//modified version of iq's https://www.shadertoy.com/view/llXBWn approximation
+	return (vec3(1.0, 0.1, 0.01) * 0.2 * (1.0 - n_dot_l) * pow(1.0 - n_dot_l_inv, 3.0 / (subsurface + 0.001)) * max(0.0, subsurface - JON_MOD_SUBSURFACE_EPIDERMAL_F0) + n_dot_l * INVPI);//0.0464 Human skin highest index of refraction(IOR)1.55 = 0.58 * 0.08
+}
+
+vec3 disney_sss(in float n_dot_l_raw, in float n_dot_v, in float l_dot_h, in float roughness, in float subsurface)
+{
+	float n_dot_l = saturate(n_dot_l_raw);
+	float Fl = pow5(1.0 - n_dot_l), Fv = pow5(1.0 - n_dot_v);
+	float Fss90 = l_dot_h * l_dot_h * roughness;
+	float Fss = mix(1.0, Fss90, Fl) * mix(1.0, Fss90, Fv);
+	float ss = 1.25 * (Fss * (1. / (n_dot_l + n_dot_v) - .5) + .5);
+	
+	return ss * sss(n_dot_l_raw, subsurface);
+}
+
 // https://iryoku.com/downloads/Practical-Realtime-Strategies-for-Accurate-Indirect-Occlusion.pdf
 vec3 muli_bounce_ambient_occlusion(vec3 cdiff, float ambient_occlusion)
 {

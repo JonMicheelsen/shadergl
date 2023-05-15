@@ -90,7 +90,7 @@ float G_Smith(float k, float n_dot_v, float n_dot_l)
 /************************************************************************
     BRDF
 ************************************************************************/
-vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n, in vec2 mask) {
+vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n, in vec3 mask, in float subsurface) {
 	
 #ifdef JON_MOD_USE_STRICTER_N_DOT_V
     CONST float e = 0.0001f;
@@ -101,7 +101,8 @@ vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in ve
 	// float n_dot_v = max(e, dot(n, v));
 #endif
 	vec3 h = normalize(v+l);
-	float n_dot_l = saturate(dot(n, l));
+	float n_dot_l_raw = dot(n, l);
+	float n_dot_l = saturate(n_dot_l_raw);
 	float n_dot_h = saturate(dot(n, h));
 	// float l_dot_h = saturate(dot(l, h));
 	float v_dot_h = saturate(dot(v, h));
@@ -144,7 +145,10 @@ vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in ve
 
 }
 vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n) {
-	return EvalBRDF(cspec, cdiff, roughness, l, v, n, vec2(1));
+	return EvalBRDF(cspec, cdiff, roughness, l, v, n, vec3(vec2(1), 0.0), 0.0);
+}
+vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n, in vec2 mask) {
+	return EvalBRDF(cspec, cdiff, roughness, l, v, n, vec3(mask, 0.0), 0.0);
 }
 
 // simplified cook torrance
