@@ -33,7 +33,23 @@ void main()
 
 	vec3 cspec = vec3(0);
 	vec3 cdiff = vec3(0);
-	get_colors(Albedo, Metalness, cspec, cdiff);
+	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+	vec3 csub = vec3(0);
+	float Subsurface = 0;
+	float SubsurfaceMask = 0;
+	float RoughnessEpidermal = 0.5;
+		get_colors(	Albedo, 
+					Metalness, 
+					Roughness, 
+					cspec, 
+					cdiff, 
+					csub, 
+					Subsurface, 
+					RoughnessEpidermal, 
+					SubsurfaceMask);
+	#else
+		get_colors(Albedo, Metalness, cspec, cdiff);
+	#endif
 
 	float ambient_occlusion = GetSSAO();//TODO @Timon/Florian maybe it'd just be better to go back to the traditional subtract later in the frame...
 

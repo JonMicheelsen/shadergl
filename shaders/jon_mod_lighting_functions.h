@@ -82,7 +82,7 @@ vec3 schlick_f(vec3 cspec, float v_dot_h)
 }
 // https://advances.realtimerendering.com/s2018/index.htm
 // It has been extended here to fade out retro reflectivity contribution from area light in order to avoid visual artefacts.
-vec3 chan_diff(vec3 cdiff, float a2, float n_dot_v, float n_dot_l, float v_dot_h, float n_dot_h, float arealight_weight, vec3 cspec)
+vec3 chan_diff(vec3 cdiff, float a2, float n_dot_v, float n_dot_l, float v_dot_h, float n_dot_h, float retroreflective_energy, vec3 cspec)
 {
 	float g = saturate((1.0 / 18.0) * log2(2.0 / a2 - 1.0));
 	
@@ -94,10 +94,7 @@ vec3 chan_diff(vec3 cdiff, float a2, float n_dot_v, float n_dot_l, float v_dot_h
 	float fd = mix(f0, fdv * fdl, saturate(2.2 * g - 0.5));
 	
 	// Retro reflectivity contribution.
-	float fb = ((34.5 * g - 59.0) * g + 24.5) * v_dot_h * exp2(-max(73.2 * g - 21.2, 8.9) * sqrt(n_dot_h));
-	
-	// It fades out when lights become area lights in order to avoid visual artefacts.
-	fb *= arealight_weight;
+	float fb = (((34.5 * g - 59.0) * g + 24.5) * v_dot_h * exp2(-max(73.2 * g - 21.2, 8.9) * sqrt(n_dot_h))) * retroreflective_energy;
 	
 	#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
 		if(GetViewPos().x < 0.0)
@@ -233,6 +230,5 @@ vec4 combined_ambient_probe_brdf(samplerCube filtered_env_map, vec3 cspec, vec3 
 	return vec4(ambient_specular.rgb + ambient_diffuse, ambient_specular.a);
 
 }
-
 #define _JON_MOD_LIGHTING_FUNCTIONS_
 #endif

@@ -90,7 +90,17 @@ float G_Smith(float k, float n_dot_v, float n_dot_l)
 /************************************************************************
     BRDF
 ************************************************************************/
-vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n, in vec3 mask, in float subsurface) {
+vec3 EvalBRDF(	in vec3 cspec, 
+				in vec3 cdiff, 
+				in float roughness, 
+				in vec3 l, 
+				in vec3 v, 
+				in vec3 n, 
+				in vec3 mask, 
+				in float subsurface, 
+				in float roughness_epidermal, 
+				in vec3 csub)
+{
 	
 #ifdef JON_MOD_USE_STRICTER_N_DOT_V
     CONST float e = 0.0001f;
@@ -104,7 +114,7 @@ vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in ve
 	float n_dot_l_raw = dot(n, l);
 	float n_dot_l = saturate(n_dot_l_raw);
 	float n_dot_h = saturate(dot(n, h));
-	// float l_dot_h = saturate(dot(l, h));
+	float l_dot_h = saturate(dot(l, h));//same as v_dot_h? TODO confirm
 	float v_dot_h = saturate(dot(v, h));
 	
 	float a = roughness*roughness;
@@ -118,37 +128,45 @@ vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in ve
 	
 	//course_notes_moving_frostbite_to_pbr_v32
 // 	float V = 0.5 * 1.0/( n_dot_l * ( n_dot_v * (1-a)+a) + n_dot_v * ( n_dot_l * (1-a)+a));
-	float V = 0.5 * 1.0/max(e, n_dot_l * ( n_dot_v * (1-a)+a) + n_dot_v * ( n_dot_l * (1-a)+a));//happens with MSAA on mesh edges, there are other ways to catch it (e.g. early per-light if (n_dot_l <= 0) discard) but this seems the most universal at first glance? although it could result in more pronounced highlights at edges? TODO @Timon/Markus test
-	
+	float V = 0.5 / max(e, n_dot_l * ( n_dot_v * (1-a)+a) + n_dot_v * ( n_dot_l * (1-a)+a));//happens with MSAA on mesh edges, there are other ways to catch it (e.g. early per-light if (n_dot_l <= 0) discard) but this seems the most universal at first glance? although it could result in more pronounced highlights at edges? TODO @Timon/Markus test
+
 #ifdef JON_MOD_USE_LUMINANCE_FRESNEL
 	vec3 F = schlick_f(cspec, v_dot_h);
 #else
 	float f = pow(1-v_dot_h, 5);
 	// https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf
-// 	float f = exp2( ( -5.55473 * v_dot_h - 6.98316 ) * v_dot_h );
 	vec3 F = f + (1-f) * cspec;
 #endif
 	float f_diff = pow(1-n_dot_v, 5);
 	// 	vec3 diff = f_diff + (1-f_diff) * cdiff;
 	// energy conservation using reflectance luminance
 	// vec3 albedo = cdiff * saturate( 1.0f - dot(LUM_ITU601, cspec));
+	vec3 diff = vec3(0.0);
 #ifdef JON_MOD_USE_RETROREFLECTIVE_DIFFUSE_MODEL
-	float arealight_weight = 1.0;
-	cdiff = chan_diff(cdiff, a2, n_dot_v, n_dot_l, v_dot_h, n_dot_h, arealight_weight, cspec);
+	diff = chan_diff(cdiff, a2, n_dot_v, n_dot_l, v_dot_h, n_dot_h, mask.z, cspec);
 #else
-	cdiff = cdiff * saturate(1.0f - dot(LUM_ITU601, cspec));
-	cdiff *= (1.0 / PI);
+	diff *= (1.0 / PI) * saturate(1.0f - dot(LUM_ITU601, cspec));
+#endif
+//	float cspec_epidermal = 0;
+#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+//	cspec_epidermal = EvalBRDFSkinSpec(roughness_epidermal, v_dot_h, n_dot_h, n_dot_v, n_dot_l, e) * mask.z;
+	csub *= disney_sss(n_dot_l_raw, n_dot_v, l_dot_h, roughness, subsurface) * mask.y;
 #endif	
 	// return vec3(v_dot_h);
 	// return (cdiff/PI);
-	return cdiff*mask.x + (D*V*F)*mask.y;
+	
+	return csub + diff * mask.x + (D * V * F) * mask.y;
 
+return vec3(0);
 }
-vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n) {
-	return EvalBRDF(cspec, cdiff, roughness, l, v, n, vec3(vec2(1), 0.0), 0.0);
+//overloads
+vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n)
+{
+	return EvalBRDF(cspec, cdiff, roughness, l, v, n, vec3(vec2(1.0), 0.0), 0.0, 0.0, vec3(0.0));
 }
-vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n, in vec2 mask) {
-	return EvalBRDF(cspec, cdiff, roughness, l, v, n, vec3(mask, 0.0), 0.0);
+vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n, in vec2 mask)
+{
+	return EvalBRDF(cspec, cdiff, roughness, l, v, n, vec3(mask, 0.0), 0.0, 0.0, vec3(0.0));
 }
 
 // simplified cook torrance
@@ -184,7 +202,6 @@ vec3 EvalBRDFSimpleSpec(in vec3 cspec, in float roughness, in vec3 l, in vec3 v,
 	CONST vec3 F = cspec;
 	return (D*V*F);
 }
-
 /************************************************************************
     Area lights
 ************************************************************************/

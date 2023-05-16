@@ -11,6 +11,9 @@ DEF_LIGHT_DIR(3)
 
 void main()
 {
+#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+	float SubsurfaceVal = 0.75;//
+#endif	
 	CONST mat3x3 inCOLORMATRIX_BASE = mat3x3(make_ColorMatrix(U_base_brightness_shift, U_base_contrast_shift, U_base_saturation_shift, U_base_hue_shift));
 	CONST mat3x3 inCOLORMATRIX_PAINT = mat3x3(make_ColorMatrix(U_paint_brightness_shift, U_paint_contrast_shift, U_paint_saturation_shift, U_paint_hue_shift));
 	
@@ -35,15 +38,62 @@ void main()
 	float3 E = float3(U_ethnicity_european / max, U_ethnicity_african / max, U_ethnicity_asian / max);
 
 
-	_IF(S_diffuse_bool) //alpha = hueShift Mask (dont shift)
-	{
-		//ColorBaseDiffuse			= tex2D(S_diffuse_map, IO_uv0).rgba;	//Base Diffuse + alpha
+	INPUT_NTB_TWOSIDED()
+	
+	float3 Normal = vec3(0);
+	//STANDARD_NORMAL_MAP(Normal)
+
+
+	Normal = IO_normal;			
+#ifdef JON_MOD_ENABLE_FULL_ANGLE_CORRECTED_CHARACTER_NORMAL_COMPOSITING		
+		//unreal derives these automatically in every single "Normal" sampler node, this should really not be a problem to do proper per texture
+		vec3 texnorm 		= NormalReZ(vec3(TEXTURE_NORMAL_XY(normal,  IO_uv0) * E.x, 0.0));
+		vec3 texnorm2 		= NormalReZ(vec3(TEXTURE_NORMAL_XY(normal2, IO_uv0) * E.y, 0.0));
+		vec3 texnorm3 		= NormalReZ(vec3(TEXTURE_NORMAL_XY(normal3, IO_uv0) * E.z, 0.0));
+		vec3 NormalAge_pp 	= NormalReZ(vec3(TEXTURE_NORMAL_XY(normal4, IO_uv0) * U_age, 0.0));
+	
+		// maximum detail preserving quality angle blend
+		Normal = CalcWorldNormal(blend_reoriented_normals(blend_reoriented_normals(texnorm, texnorm2), blend_reoriented_normals(texnorm3, NormalAge_pp)));
+#else	
+		vec3 texnorm = TEXTURE_NORMAL(normal, IO_uv0);
+		vec2 texnorm2 = TEXTURE_NORMAL_XY(normal2, IO_uv0);
+		vec2 texnorm3 = TEXTURE_NORMAL_XY(normal3, IO_uv0);
+	
+		half3 NormalAge_pp = TEXTURE_NORMAL(normal4, IO_uv0).xyz;
+	
 		
-		ColorBaseDiffuse = tex2D(S_diffuse_map, IO_uv0).rgba*E.x + tex2D(S_diffuse2_map, IO_uv0).rgba*E.y+ tex2D(S_diffuse3_map, IO_uv0).rgba*E.z;
-		ColorBaseDiffuse.rgb = ColorBaseDiffuse.rgb*(1.0 - U_age) + ColorBaseDiffuse.rgb*tex2D(S_diffuse4_map, IO_uv0).rgb*U_age;
+		texnorm.xy = texnorm.xy*E.x + texnorm2*E.y+ texnorm3*E.z+NormalAge_pp.xy*U_age;
 		
-		ColorBaseDiffuse.rgb		= blendAlpha(ColorBaseDiffuse.rgb, mul(ColorBaseDiffuse.rgb, inCOLORMATRIX_BASE), ColorBaseDiffuse.a);
-	}
+		texnorm = normalize(texnorm);
+		
+		Normal = CalcWorldNormal(texnorm);			
+#endif	
+
+		_IF(S_diffuse_bool) //alpha = hueShift Mask (dont shift)
+		{
+			//ColorBaseDiffuse			= tex2D(S_diffuse_map, IO_uv0).rgba;	//Base Diffuse + alpha
+			
+			ColorBaseDiffuse = tex2D(S_diffuse_map, IO_uv0).rgba*E.x + tex2D(S_diffuse2_map, IO_uv0).rgba*E.y+ tex2D(S_diffuse3_map, IO_uv0).rgba*E.z;
+			ColorBaseDiffuse.rgb = ColorBaseDiffuse.rgb*(1.0 - U_age) + ColorBaseDiffuse.rgb*tex2D(S_diffuse4_map, IO_uv0).rgb*U_age;
+			
+			ColorBaseDiffuse.rgb		= blendAlpha(ColorBaseDiffuse.rgb, mul(ColorBaseDiffuse.rgb, inCOLORMATRIX_BASE), ColorBaseDiffuse.a);
+		}
+		
+#ifdef JON_MOD_ENABLE_SUBSURFACE_BIAS_BLUR_TRICK
+		vec3 wv = GetFragViewDir();// * mat3(M_view);
+		float SubsurfaceBlur = pow2(dot(wv, normalize(mix(IO_normal, Normal, SubsurfaceVal))) * 0.5 + 0.5) * 4.0;	
+		_IF(S_diffuse_bool) //alpha = hueShift Mask (dont shift)
+		{
+			//poor mans view dependant subsurface scattering aproximation, brighter spots == less  absorption == more seethrough.
+			//we could improve with faint parallax
+			SubsurfaceBlur				*= dot(ColorBaseDiffuse.rgb, vec3(0.2126, 0.7152, 0.0722)) * SubsurfaceVal;
+
+			ColorBaseDiffuse			= texture(S_diffuse_map, IO_uv0, SubsurfaceBlur).rgba*E.x + texture(S_diffuse2_map, IO_uv0, SubsurfaceBlur).rgba*E.y+ texture(S_diffuse3_map, IO_uv0, SubsurfaceBlur).rgba*E.z;
+			ColorBaseDiffuse.rgb		= ColorBaseDiffuse.rgb*(1.0 - U_age) + ColorBaseDiffuse.rgb*texture(S_diffuse4_map, IO_uv0, SubsurfaceBlur).rgb*U_age;		
+			ColorBaseDiffuse.rgb		= blendAlpha(ColorBaseDiffuse.rgb, mul(ColorBaseDiffuse.rgb, inCOLORMATRIX_BASE), ColorBaseDiffuse.a);
+		}
+			
+#endif	
 	CONST half3 diffnorm = ColorBaseDiffuse.rgb;
 
 	//--------------------------------------------------------------------------------------
@@ -58,29 +108,6 @@ void main()
 		ColorBaseDiffuse.rgb	= blendAlpha(ColorBaseDiffuse.rgb, ColorPaint.rgb, ColorPaint.a); // not overlay since we dont want to mix with skin! 
 		ColorBaseDiffuseSub.rgb	= blendAlpha(ColorBaseDiffuseSub.rgb, ColorPaint.rgb, ColorPaint.a); // not overlay since we dont want to mix with skin! 
 	}
-	
-	
-	INPUT_NTB_TWOSIDED()
-	
-	float3 Normal = vec3(0);
-	//STANDARD_NORMAL_MAP(Normal)
-
-
-		Normal = IO_normal;			
-				
-		vec3 texnorm = TEXTURE_NORMAL(normal, IO_uv0);
-		vec2 texnorm2 = TEXTURE_NORMAL_XY(normal2, IO_uv0);
-		vec2 texnorm3 = TEXTURE_NORMAL_XY(normal3, IO_uv0);
-
-		half3 NormalAge_pp = TEXTURE_NORMAL(normal4, IO_uv0).xyz;
-
-
-		texnorm.xy = texnorm.xy*E.x + texnorm2*E.y+ texnorm3*E.z+NormalAge_pp.xy*U_age;
-		
-		texnorm = normalize(texnorm);				
-		Normal = CalcWorldNormal(texnorm);			
-				
-	
 	
 	
 	// Shadow value, Ohoh we just have shadow calced for the main light so we only need to darken the light we have for the first global ? (does this always match?)
@@ -121,7 +148,6 @@ void main()
 	//MetalnessVal = 0.0f;
 	// GENERAL_OUTPUT(Normal.xyz, vec3(0, 0, -1), cc, ColorBaseDiffuse.rgb, ColorGlow, GlowStr, MetalnessVal, SmoothnessVal);
 #ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
-	float SubsurfaceVal = 0.75;
 	GENERAL_OUTPUT_SUBSURFACE(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SubsurfaceVal, SmoothnessVal, ColorGlow);
 #else	
 	GENERAL_OUTPUT(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SmoothnessVal, ColorGlow);

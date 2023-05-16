@@ -77,3 +77,39 @@ void RoughnessRemapSmoothVersion(inout float Smooth)
 		#endif
 	#endif
 }
+void get_subdermal_roughness(	inout vec3 cspec, 
+								inout float roughness, 
+								out float roughness_epidermal, 
+								in float subsurface_mask)
+{
+	roughness_epidermal = clamp(roughness + JON_MOD_SUBSURFACE_EPIDERMAL_ROUGHNESS, 0.04, 1.0);
+//	cspec *= ((1.0 - subsurface_mask) + subsurface_mask);
+	roughness = clamp(roughness + JON_MOD_SUBSURFACE_SUBDERMAL_ROUGHNESS * subsurface_mask, 0.04, 1.0);//we're baking the subdermal roughness into the regular one
+}
+void get_colors(in vec3 albedo, 
+				in float metalness, 
+				in float roughness, 
+				out vec3 cspec, 
+				out vec3 cdiff, 
+				out vec3 csub, 
+				out float subsurface, 
+				out float roughness_epidermal, 
+				out float subsurface_mask)
+{
+	UnpackMetalSubsurface(metalness, subsurface);
+	subsurface_mask = ceil(max(0.0, subsurface - 0.001));
+	#ifdef JON_MOD_DEBUG_GREY_WORLD
+		albedo = vec3(0.5);
+	#endif
+    cdiff = albedo * (1.0 - metalness);
+	csub = sqrt(cdiff) * subsurface_mask;//we could bitpack different races and etniceties 
+//	cdiff *= (1.0 - subsurface);
+    cspec = mix(vec3(0.04), albedo, metalness);
+	get_subdermal_roughness(cspec, 
+							roughness, 
+							roughness_epidermal, 
+							subsurface_mask);
+	
+
+	//cdiff = cdiff * saturate(1.0f - dot(LUM_ITU601, cspec)); // cheap luminance energy conservation why though!?
+}

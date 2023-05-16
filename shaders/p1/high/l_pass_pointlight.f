@@ -57,10 +57,22 @@ void main()
 	vec3 cspec = vec3(0);
 	vec3 cdiff = vec3(0);
 	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
-		float Subsurface = 0.0;
-		UnpackMetalSubsurface(Metalness, Subsurface);
+	vec3 csub = vec3(0);
+	float Subsurface = 0;
+	float SubsurfaceMask = 0;
+	float RoughnessEpidermal = 0.5;
+		get_colors(	Albedo, 
+					Metalness, 
+					Roughness, 
+					cspec, 
+					cdiff, 
+					csub, 
+					Subsurface, 
+					RoughnessEpidermal, 
+					SubsurfaceMask);
+	#else
+		get_colors(Albedo, Metalness, cspec, cdiff);
 	#endif
-	get_colors(Albedo, Metalness, cspec, cdiff);
 	#ifndef LOCALSPEC
 		cspec *= 0.0f;
 	#endif
