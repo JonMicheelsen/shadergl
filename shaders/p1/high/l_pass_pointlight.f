@@ -90,11 +90,29 @@ void main()
 	#endif
 	
 	//TODO @Timon this is all so wrong, but historical reasons... 
+/*
 #ifdef LOCALSPEC
 	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec2(1, IO_SpecularIntensity)) * lightcolor * n_dot_l;
 #else
 	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec2(1,0)) * lightcolor * n_dot_l;
 #endif
+*/
+	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+		finalColor.rgb += EvalBRDF(	cspec,
+							cdiff, 
+							Roughness, 
+							L, 
+							wn, 
+							wn, 
+							vec3(n_dot_l, n_dot_l * IO_SpecularIntensity, n_dot_l * SubsurfaceMask), 
+							Subsurface, 
+							RoughnessEpidermal, 
+							csub) * lightcolor;//specular, diffuse and subsurface
+	#else
+		finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, L, wv, wn, vec2(n_dot_l, n_dot_l * IO_SpecularIntensity)) * lightcolor; // specular, diffuse
+	#endif
+
+
 	float atten = PSquareDistanceAtt;
 	finalColor.rgb *= atten;
 	finalColor.a = 1;

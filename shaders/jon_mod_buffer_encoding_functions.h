@@ -102,9 +102,9 @@ void get_colors(in vec3 albedo,
 		albedo = vec3(0.5);
 	#endif
     cdiff = albedo * (1.0 - metalness);
-	csub = sqrt(cdiff) * subsurface_mask;//we could bitpack different races and etniceties 
+	csub = (sqrt(cdiff) * JON_MOD_SUBSURFACE_EPIDERMAL_TINT) * subsurface_mask;//we could bitpack different races and etniceties 
 //	cdiff *= (1.0 - subsurface);
-    cspec = mix(vec3(0.04), albedo, metalness);
+    cspec = mix(vec3(mix(0.04, JON_MOD_SUBSURFACE_EPIDERMAL_F0, subsurface_mask)), albedo, metalness);
 	get_subdermal_roughness(cspec, 
 							roughness, 
 							roughness_epidermal, 

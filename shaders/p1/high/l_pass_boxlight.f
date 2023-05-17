@@ -113,12 +113,28 @@ void main()
 		float ambient_occlusion = GetSSAO();
 		diffuse_occlusion = saturate(ambient_occlusion);
 	}
-	
+/*	
 #ifdef LOCALSPEC
 	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, normalize(L), v, n, vec2(1, IO_SpecularIntensity)) * clight * n_dot_l;
 #else 
 	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, normalize(L), v, n, vec2(1, 0)) * clight * n_dot_l;
 #endif
+*/
+	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+		finalColor.rgb += EvalBRDF(	cspec,
+							cdiff, 
+							Roughness, 
+							L, 
+							wn, 
+							wn, 
+							vec3(n_dot_l, n_dot_l * IO_SpecularIntensity, n_dot_l * SubsurfaceMask), 
+							Subsurface, 
+							RoughnessEpidermal, 
+							csub) * lightcolor;//specular, diffuse and subsurface
+	#else
+		finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, L, wv, wn, vec2(n_dot_l, n_dot_l * IO_SpecularIntensity)) * lightcolor; // specular, diffuse
+	#endif
+
 	float atten = PSquareDistanceAtt;
 	finalColor.rgb *= atten;
 

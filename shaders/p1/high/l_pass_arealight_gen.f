@@ -320,10 +320,13 @@ void main()
 		#else	
 			vec3 lightcolor = IO_lightcolor.rgb;
 		#endif
-
+/*
 		// diffuse contribution
 		vec3 Idiff = lightcolor * diffndotl * diffuse_occlusion;
 		finalColor.rgb += Idiff * cdiff/PI ;
+*/		
+		diffndotl *= diffuse_occlusion;
+//		finalColor.rgb += Idiff * cdiff/PI ;
 
 
 		vec3 v = normalize(-view_pos);
@@ -363,10 +366,26 @@ void main()
 
 
 		// specular contribution
-		vec3 Ispec = IO_SpecIntensity * lightcolor * specatten * n_dot_l;
+		//vec3 Ispec = IO_SpecIntensity * lightcolor * specatten * n_dot_l;
+		specatten *= n_dot_l * IO_SpecIntensity;
 		// vec3 Ispec = IO_SpecIntensity * IO_Intensity * IO_lightcolor.rgb * specatten * diffndotl;
-		finalColor.rgb += Ispec * EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec2(0,1));
+//		finalColor.rgb += Ispec * EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec2(0,1));
 	// finalColor.rgb = vec3(n_dot_l);
+	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+		finalColor.rgb += EvalBRDF(	cspec,
+							cdiff, 
+							Roughness, 
+							L, 
+							wn, 
+							wn, 
+							vec3(diffndotl, specatten, diffndotl * SubsurfaceMask), 
+							Subsurface, 
+							RoughnessEpidermal, 
+							csub) * lightcolor;//specular, diffuse and subsurface
+	#else
+		finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, L, wv, wn, vec2(diffndotl, specatten)) * lightcolor; // specular, diffuse
+	#endif
+
 	}
 	finalColor.rgb *= atten;
 

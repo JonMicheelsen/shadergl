@@ -85,7 +85,11 @@ float G_Smith(float k, float n_dot_v, float n_dot_l)
 {
 	return G_Schlick_GGX(k, n_dot_v) * G_Schlick_GGX(k, n_dot_l);
 }
-
+float D_GGX(float a2, float n_dot_h)
+{
+	float d = (n_dot_h * a2 - n_dot_h) * n_dot_h + 1.0;
+	return a2 / (PI * d * d);
+}
 
 /************************************************************************
     BRDF
@@ -116,7 +120,7 @@ vec3 EvalBRDF(	in vec3 cspec,
 	float n_dot_h = saturate(dot(n, h));
 	float l_dot_h = saturate(dot(l, h));//same as v_dot_h? TODO confirm
 	float v_dot_h = saturate(dot(v, h));
-	
+/*	
 	float a = roughness*roughness;
 	// a = roughness; // test
 	float a2 = a*a;
@@ -125,10 +129,10 @@ vec3 EvalBRDF(	in vec3 cspec,
 	float d = (n_dot_h * a2 - n_dot_h) * n_dot_h +1;
 	float D = (a2 / ( PI*d*d) );
 	// float D = (a2 / max(e, PI*d*d) );
-	
+*/	
+	float D = D_GGX(pow4(roughness), n_dot_h);//note if subdermal roughness, it's already in this term!
 	//course_notes_moving_frostbite_to_pbr_v32
 // 	float V = 0.5 * 1.0/( n_dot_l * ( n_dot_v * (1-a)+a) + n_dot_v * ( n_dot_l * (1-a)+a));
-	float V = 0.5 / max(e, n_dot_l * ( n_dot_v * (1-a)+a) + n_dot_v * ( n_dot_l * (1-a)+a));//happens with MSAA on mesh edges, there are other ways to catch it (e.g. early per-light if (n_dot_l <= 0) discard) but this seems the most universal at first glance? although it could result in more pronounced highlights at edges? TODO @Timon/Markus test
 
 #ifdef JON_MOD_USE_LUMINANCE_FRESNEL
 	vec3 F = schlick_f(cspec, v_dot_h);
@@ -141,23 +145,25 @@ vec3 EvalBRDF(	in vec3 cspec,
 	// 	vec3 diff = f_diff + (1-f_diff) * cdiff;
 	// energy conservation using reflectance luminance
 	// vec3 albedo = cdiff * saturate( 1.0f - dot(LUM_ITU601, cspec));
+#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+	D = mix(D, D_GGX(pow4(roughness_epidermal), n_dot_h), subsurface);
+	roughness = mix(roughness, roughness_epidermal, subsurface);
+	csub *= disney_sss(n_dot_l_raw, n_dot_v, l_dot_h, roughness, subsurface);
+#endif	
+	float a = pow2(roughness);
+	float a2 = pow2(roughness);
 	vec3 diff = vec3(0.0);
 #ifdef JON_MOD_USE_RETROREFLECTIVE_DIFFUSE_MODEL
-	diff = chan_diff(cdiff, a2, n_dot_v, n_dot_l, v_dot_h, n_dot_h, mask.z, cspec);
+	diff = chan_diff(cdiff, a2, n_dot_v, n_dot_l, v_dot_h, n_dot_h, mask.y, cspec);
 #else
 	diff *= (1.0 / PI) * saturate(1.0f - dot(LUM_ITU601, cspec));
 #endif
 //	float cspec_epidermal = 0;
-#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
-//	cspec_epidermal = EvalBRDFSkinSpec(roughness_epidermal, v_dot_h, n_dot_h, n_dot_v, n_dot_l, e) * mask.z;
-	csub *= disney_sss(n_dot_l_raw, n_dot_v, l_dot_h, roughness, subsurface) * mask.y;
-#endif	
 	// return vec3(v_dot_h);
 	// return (cdiff/PI);
+	float V = 0.5 / max(e, n_dot_l * (n_dot_v * (1-a)+a) + n_dot_v * (n_dot_l * (1-a)+a));//happens with MSAA on mesh edges, there are other ways to catch it (e.g. early per-light if (n_dot_l <= 0) discard) but this seems the most universal at first glance? although it could result in more pronounced highlights at edges? TODO @Timon/Markus test
 	
-	return csub + diff * mask.x + (D * V * F) * mask.y;
-
-return vec3(0);
+	return csub * mask.z + diff * mask.x + (D * V * F) * mask.y;
 }
 //overloads
 vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n)
