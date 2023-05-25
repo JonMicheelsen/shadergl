@@ -48,7 +48,7 @@
 	#define JON_MOD_SSSHADOWS_MAX_THICKNESS 1000.0 //default 1000.0 = 100.0m shadows thicker than this from the camera are ignored, so as to things near ain't casting shadows on things far
 	//near
 	#define JON_MOD_SSSHADOWS_FADE_DISTANCE_NEAR 25.0 // 25.0m
-	#define JON_MOD_SSSHADOWS_MAX_THICKNESS_NEAR 0.1 //10.0cm
+	#define JON_MOD_SSSHADOWS_MAX_THICKNESS_NEAR 0.05 //5.0cm
 	#define JON_MOD_SSSHADOWS_RAY_MAX_DISTANCE_NEAR 0.15 //default 15cm
 	#define JON_MOD_SSSHADOWS_BIAS_NEAR 0.05 //5.0cm
 	#define JON_MOD_SSSHADOWS_ATTENUATION_NEAR 0.03125 //optional soft fade near shadows
