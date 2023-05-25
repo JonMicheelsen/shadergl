@@ -1475,6 +1475,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 	vec3 cdiff = vec3(0);
 	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	vec3 csub = vec3(0);
+	vec3 wnsub = wn;
 	float Subsurface = 0;
 	float SubsurfaceMask = 0;
 	float RoughnessEpidermal = 0.5;
@@ -1483,7 +1484,8 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 					Roughness, 
 					cspec, 
 					cdiff, 
-					csub, 
+					csub,
+					wnsub,					
 					Subsurface, 
 					RoughnessEpidermal, 
 					SubsurfaceMask);
@@ -1495,7 +1497,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 	// dirlight data
 	vec3 ldirs[2];
 	vec3 lcolors[2];
-	float direct_occlusions[2];
+	float2 direct_occlusions[2];
 
 	ldirs[0] = normalize(V_direction1.xyz);
 	ldirs[1] = normalize(V_direction2.xyz);
@@ -1512,7 +1514,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 	lcolors[1] = vec3(1.0, 0.0, 0.0);
 #endif 
 	for (int i = 0; i < 2; ++i) {
-		direct_occlusions[i] = saturate(dot(ldirs[i], wn));
+		direct_occlusions[i] = saturate(float2(dot(ldirs[i], wn), dot(ldirs[i], wnsub)));
 	}
 	
 	//vec3 l = mat3(M_view) * normalize(V_direction1.xyz);
@@ -1526,8 +1528,8 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 	
 #ifndef DISABLE_SHADOW_HELPERS
 #ifndef DISABLE_SHADOW_SUPPORT
-	if (B_shadow && direct_occlusions[0] > 0.0f) {
-		float ndotle = max(epsilon, direct_occlusions[0]);
+	if (B_shadow && direct_occlusions[0].x > 0.0f) {
+//		float ndotle = max(epsilon, direct_occlusions[0]);
 		CONST float FADE_STR = 0.1;
 		CONST float FADE_STR_DIST = 0.5;
 		if (F_shadowmaxdistance < 6000.0f) {
@@ -1545,7 +1547,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 		coords[2] = mul(float4(view_pos, 1), M_shadowCSM2);
 		coords[3] = mul(float4(view_pos, 1), M_shadowCSM3);
 		coords[4] = mul(float4(view_pos, 1), M_shadowCSM4);
-		direct_occlusions[0] *= saturate(fade + GetCSMShadow(direct_occlusions[0], coords));
+		direct_occlusions[0].x *= saturate(fade + GetCSMShadow(direct_occlusions[0].x, coords));
 		
 	/*	vec4 weights = getCSMWeights(coords);
 		float w0 = weights.x;
@@ -1597,7 +1599,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 				ss_shadow_debug.b = direct_occlusions[JON_MOD_SSSHADOWS_LIGHT_TO_DEBUG];
 			#endif
 			//screenspace shadow
-			if((direct_occlusions[i] * (fade_near + fade)) > 0.001)
+			if((direct_occlusions[i].x * (fade_near + fade)) > 0.001)
 			{
 				#ifndef JON_MOD_SSSHADOWS_SUPPORT_BOTH_PRIMARY_LIGHTS
 				if(i > 0)
@@ -1619,11 +1621,12 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 				#endif
 			#endif
 		#endif
-		direct_occlusions[i] *= ss_shadow;
+		direct_occlusions[i].x *= ss_shadow;
 
 		// todo: slightly refactor the following
 		vec3 L;
-		vec3 E_sph = direct_occlusions[i] * lcolors[i] * EvalSphereLight(light_radius, ldirs[i] * 1000, wv, wn, wr, Roughness, L);
+		direct_occlusions[i] *= EvalSphereLight(light_radius, ldirs[i] * 1000, wv, wn, wr, Roughness, L);
+		vec3 E_sph = lcolors[i]; 
 		//E_sph *= PI; // diffuse normalization
 		L = normalize(L);
 		
@@ -1634,12 +1637,13 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 									L, 
 									wn, 
 									wn, 
-									vec3(1.0, 1.0, SubsurfaceMask), 
+									vec3(direct_occlusions[i].x, direct_occlusions[i].x, SubsurfaceMask * direct_occlusions[i].y), 
 									Subsurface, 
 									RoughnessEpidermal, 
-									csub) * E_sph;//specular, diffuse and subsurface
+									csub,
+									true) * lcolors[i];//specular, diffuse and subsurface
 		#else
-			light_accum += EvalBRDF(cspec, cdiff, Roughness, L, wv, wn, vec2(1)) * E_sph; // specular, diffuse
+			light_accum += (EvalBRDF(cspec, cdiff, Roughness, L, wv, wn, vec2(1)) * lcolors[i]) * direct_occlusions[i].x; // specular, diffuse
 		#endif
 		// clearcoat
 		//float clearcoat_spec = cc * EvalBRDF(vec3(0.05), cdiff, 0.1, L, v, Normal2, vec2(0,1)).r; // ok since dielectric reflection

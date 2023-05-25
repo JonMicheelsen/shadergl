@@ -91,6 +91,10 @@ float D_GGX(float a2, float n_dot_h)
 	return a2 / (PI * d * d);
 }
 
+float V_Smith(float a, float n_dot_v, float n_dot_l)
+{
+	return 0.5 / (n_dot_l * (n_dot_v * (1 - a) + a) + n_dot_v * (n_dot_l * (1 - a) + a));
+}
 /************************************************************************
     BRDF
 ************************************************************************/
@@ -103,15 +107,16 @@ vec3 EvalBRDF(	in vec3 cspec,
 				in vec3 mask, 
 				in float subsurface, 
 				in float roughness_epidermal, 
-				in vec3 csub)
+				in vec3 csub,
+				in bool fullV)
 {
-	
+	float n_dot_v_raw = dot(n, v);
 #ifdef JON_MOD_USE_STRICTER_N_DOT_V
     CONST float e = 0.0001f;
-	float n_dot_v = abs(dot(n, v)) * (1.0 - e) + e;//the n and v are normalized, we shouldn't need the clamp
+	float n_dot_v = saturate(abs(n_dot_v_raw)) * (1.0 - e) + e;//the n and v are normalized, we shouldn't need the clamp
 #else	
     CONST float e = 0.00000001f;
-	float n_dot_v = saturate(abs(dot(n, v))+e);
+	float n_dot_v = saturate(abs(n_dot_v_raw)+e);
 	// float n_dot_v = max(e, dot(n, v));
 #endif
 	vec3 h = normalize(v+l);
@@ -151,28 +156,32 @@ vec3 EvalBRDF(	in vec3 cspec,
 	csub *= disney_sss(n_dot_l_raw, n_dot_v, l_dot_h, roughness, subsurface);
 #endif	
 	float a = pow2(roughness);
-	float a2 = pow2(roughness);
+	float a2 = pow2(a);
 	vec3 diff = vec3(0.0);
 #ifdef JON_MOD_USE_RETROREFLECTIVE_DIFFUSE_MODEL
-	diff = chan_diff(cdiff, a2, n_dot_v, n_dot_l, v_dot_h, n_dot_h, mask.y, cspec);
+	cdiff *= chan_diff(a2, n_dot_v, n_dot_l, v_dot_h, n_dot_h, 1.0, cspec);
 #else
-	diff *= (1.0 / PI) * saturate(1.0f - dot(LUM_ITU601, cspec));
+	cdiff *= (1.0 / PI) * saturate(1.0f - dot(LUM_ITU601, cspec));
 #endif
 //	float cspec_epidermal = 0;
 	// return vec3(v_dot_h);
 	// return (cdiff/PI);
-	float V = 0.5 / max(e, n_dot_l * (n_dot_v * (1-a)+a) + n_dot_v * (n_dot_l * (1-a)+a));//happens with MSAA on mesh edges, there are other ways to catch it (e.g. early per-light if (n_dot_l <= 0) discard) but this seems the most universal at first glance? although it could result in more pronounced highlights at edges? TODO @Timon/Markus test
-	
-	return csub * mask.z + diff * mask.x + (D * V * F) * mask.y;
+//	float V = 0.5 * 1.0 / max(e, n_dot_l * (n_dot_v * (1-a)+a) + n_dot_v * (n_dot_l * (1-a)+a));//happens with MSAA on mesh edges, there are other ways to catch it (e.g. early per-light if (n_dot_l <= 0) discard) but this seems the most universal at first glance? although it could result in more pronounced highlights at edges? TODO @Timon/Markus test
+	float V = 0.25;
+	if(fullV)
+	{
+		V = V_Smith(a, n_dot_v, n_dot_l);
+	}
+	return csub * mask.z + cdiff * mask.x + (D * V * mask.y * saturate(n_dot_v_raw * 1000.0)) * F;
 }
 //overloads
 vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n)
 {
-	return EvalBRDF(cspec, cdiff, roughness, l, v, n, vec3(vec2(1.0), 0.0), 0.0, 0.0, vec3(0.0));
+	return EvalBRDF(cspec, cdiff, roughness, l, v, n, vec3(vec2(1.0), 0.0), 0.0, 0.0, vec3(0.0), false);
 }
 vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n, in vec2 mask)
 {
-	return EvalBRDF(cspec, cdiff, roughness, l, v, n, vec3(mask, 0.0), 0.0, 0.0, vec3(0.0));
+	return EvalBRDF(cspec, cdiff, roughness, l, v, n, vec3(mask, 0.0), 0.0, 0.0, vec3(0.0), false);
 }
 
 // simplified cook torrance
@@ -205,7 +214,7 @@ vec3 EvalBRDFSimpleSpec(in vec3 cspec, in float roughness, in vec3 l, in vec3 v,
 	CONST float d = (n_dot_h * a2 - n_dot_h) * n_dot_h + 1;
 	CONST float D = (a2 / (PI*d*d));
 	CONST float V = 0.25;
-	CONST vec3 F = cspec;
+	CONST vec3 F = schlick_f(cspec, saturate(dot(h, v)));
 	return (D*V*F);
 }
 /************************************************************************
@@ -334,7 +343,7 @@ vec3 get_irradiance(samplerCube filtered_env_map, in vec3 n) {
 
 void get_colors(in vec3 albedo, in float metalness, out vec3 cspec, out vec3 cdiff) {
 	#ifdef JON_MOD_DEBUG_GREY_WORLD
-		albedo = vec3(0.5);
+		albedo = vec3(1.0);
 	#endif
     cdiff = albedo * (1.0-metalness);
     cspec = mix(vec3(0.04), albedo, metalness);

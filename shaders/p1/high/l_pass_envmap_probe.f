@@ -35,6 +35,7 @@ void main()
 	vec3 cdiff = vec3(0);
 	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	vec3 csub = vec3(0);
+	vec3 SubsurfaceNormal = wn;
 	float Subsurface = 0;
 	float SubsurfaceMask = 0;
 	float RoughnessEpidermal = 0.5;
@@ -44,6 +45,7 @@ void main()
 					cspec, 
 					cdiff, 
 					csub, 
+					SubsurfaceNormal,
 					Subsurface, 
 					RoughnessEpidermal, 
 					SubsurfaceMask);
@@ -119,6 +121,9 @@ void main()
 			finalColor.a = saturate(finalColor.a);
 		#endif
 	}
+#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES_REACH
+	OUT_Color.rgb = lightcolor;
+#endif
 #ifdef LPASS_BLEND_DEBUG
 	OUT_Color.rgb = IO_lightcolor.rgb;
 	OUT_Color.a = 1;

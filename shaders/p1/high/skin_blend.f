@@ -33,7 +33,7 @@ void main()
 	{
 		MetalnessVal *= tex2D(S_metal_map, IO_uv0).r;
 	}
-
+	SubsurfaceVal *= (1.0 - min(1.0, MetalnessVal * 256));
 	float max = U_ethnicity_european + U_ethnicity_african + U_ethnicity_asian;
 	float3 E = float3(U_ethnicity_european / max, U_ethnicity_african / max, U_ethnicity_asian / max);
 
@@ -147,7 +147,10 @@ void main()
 	//SmoothnessVal = 0.6f;
 	//MetalnessVal = 0.0f;
 	// GENERAL_OUTPUT(Normal.xyz, vec3(0, 0, -1), cc, ColorBaseDiffuse.rgb, ColorGlow, GlowStr, MetalnessVal, SmoothnessVal);
+
+
 #ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+	ColorBaseDiffuse.rgb = bit_pack_albedo_normal(ColorBaseDiffuse.rgb, normalize(IO_normal), SubsurfaceVal);
 	GENERAL_OUTPUT_SUBSURFACE(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SubsurfaceVal, SmoothnessVal, ColorGlow);
 #else	
 	GENERAL_OUTPUT(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SmoothnessVal, ColorGlow);

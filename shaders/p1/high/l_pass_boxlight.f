@@ -82,6 +82,7 @@ void main()
 	vec3 cdiff = vec3(0);
 	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	vec3 csub = vec3(0);
+	vec3 SubsurfaceNormal = Normal;
 	float Subsurface = 0;
 	float SubsurfaceMask = 0;
 	float RoughnessEpidermal = 0.5;
@@ -91,15 +92,18 @@ void main()
 					cspec, 
 					cdiff, 
 					csub, 
+					SubsurfaceNormal,
 					Subsurface, 
 					RoughnessEpidermal, 
 					SubsurfaceMask);
 	#else
 		get_colors(Albedo, Metalness, cspec, cdiff);
 	#endif
+/*	
 #ifndef LOCALSPEC
 	cspec = cspec * 0.0f;
 #endif
+*/
 	#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
 		vec3 lightcolor = vec3(1.0, 0.0, 1.0);
 	#else	
@@ -120,20 +124,11 @@ void main()
 	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, normalize(L), v, n, vec2(1, 0)) * clight * n_dot_l;
 #endif
 */
-	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
-		finalColor.rgb += EvalBRDF(	cspec,
-							cdiff, 
-							Roughness, 
-							L, 
-							wn, 
-							wn, 
-							vec3(n_dot_l, n_dot_l * IO_SpecularIntensity, n_dot_l * SubsurfaceMask), 
-							Subsurface, 
-							RoughnessEpidermal, 
-							csub) * lightcolor;//specular, diffuse and subsurface
-	#else
-		finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, L, wv, wn, vec2(n_dot_l, n_dot_l * IO_SpecularIntensity)) * lightcolor; // specular, diffuse
-	#endif
+#ifdef LOCALSPEC
+	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, n_dot_l * IO_SpecularIntensity, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, true) * clight;
+#else
+	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, false) * clight;
+#endif
 
 	float atten = PSquareDistanceAtt;
 	finalColor.rgb *= atten;
@@ -143,6 +138,9 @@ void main()
 	OUT_Color.rgb = finalColor.rgb*diffuse_occlusion;
 	OUT_Color.a = 0;
 	
+#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES_REACH
+	OUT_Color.rgb = lightcolor;
+#endif
 	LPASS_SHAPE_FINAL_ATTEN(atten)
 #ifdef LPASS_COUNT
 	OUT_Color *= FLOAT_SMALL_NUMBER;

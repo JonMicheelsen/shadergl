@@ -82,7 +82,7 @@ vec3 schlick_f(vec3 cspec, float v_dot_h)
 }
 // https://advances.realtimerendering.com/s2018/index.htm
 // It has been extended here to fade out retro reflectivity contribution from area light in order to avoid visual artefacts.
-vec3 chan_diff(vec3 cdiff, float a2, float n_dot_v, float n_dot_l, float v_dot_h, float n_dot_h, float retroreflective_energy, vec3 cspec)
+float chan_diff(float a2, float n_dot_v, float n_dot_l, float v_dot_h, float n_dot_h, float retroreflective_energy, vec3 cspec)
 {
 	float g = saturate((1.0 / 18.0) * log2(2.0 / a2 - 1.0));
 	
@@ -98,10 +98,10 @@ vec3 chan_diff(vec3 cdiff, float a2, float n_dot_v, float n_dot_l, float v_dot_h
 	
 	#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
 		if(GetViewPos().x < 0.0)
-			return cdiff * (1.0 / PI) * saturate(1.0f - dot(LUM_ITU601, cspec));
+			return (1.0 / PI) * saturate(1.0f - dot(LUM_ITU601, cspec));
 	#endif
 		
-	return cdiff * (INVPI * (fd + fb));
+	return INVPI * (fd + fb);
 	
 }
 vec3 sss(float n_dot_l_raw, float subsurface)
@@ -152,7 +152,7 @@ vec3 combined_ambient_brdf(samplerCube filtered_env_map, vec3 cspec, vec3 cdiff,
 {
 	int lowest_mip = max_spec_level_less_strict(filtered_env_map);
 	float n_dot_v = dot(normal, view);
-	vec3 reflection = view - 2.0 * normal * n_dot_v;//view and normal are both normalized, so we don't need to too.
+	vec3 reflection = (view - 2.0 * normal * n_dot_v);//view and normal are both normalized, so we don't need to too.
 	n_dot_v = max(0.0, n_dot_v);
 	//chan_diffuse is now baked into to T_preintegrated_GGX b channel
 	vec3 env_brdfs = textureLod(T_preintegrated_GGX, vec2(roughness, n_dot_v), 0).xyz;

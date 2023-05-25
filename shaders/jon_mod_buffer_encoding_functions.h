@@ -86,24 +86,47 @@ void get_subdermal_roughness(	inout vec3 cspec,
 //	cspec *= ((1.0 - subsurface_mask) + subsurface_mask);
 	roughness = clamp(roughness + JON_MOD_SUBSURFACE_SUBDERMAL_ROUGHNESS * subsurface_mask, 0.04, 1.0);//we're baking the subdermal roughness into the regular one
 }
+
+//buffers is 16161616, game's "decals" never blends on subsurface surfaces, we should be safe :P
+vec3 bit_pack_albedo_normal(in vec3 albedo, in vec3 normal, in float subsurface)
+{
+	float scale = 254.0;
+	float scale_bit_pack = 1.0 / scale;
+	
+	//assumes the normal to be normalized!
+	return subsurface > 0.0 ? (floor(albedo * 254) + (normal * 0.5 + 0.5) * (1.0 - scale_bit_pack)) * scale_bit_pack : albedo;
+}
+void bit_unpack_albedo_normal(inout vec3 albedo, inout vec3 subsurface_normal, in float subsurface_mask)
+{
+	float scale = 254.0;
+	float scale_bit_pack = 1.0 / scale;
+	float scale_normal = 1.0 / (1.0 - scale_bit_pack);
+
+	//assumes subsurface_normal is passed in defined as the regular normal, to avoid NaN's, if it was 0!
+	subsurface_normal = subsurface_mask > 0.0 ? ((albedo * scale - floor(albedo * scale)) * scale_normal) * 2.0 - 1.0 : subsurface_normal;
+	albedo = subsurface_mask > 0.0 ? floor(albedo * scale) * scale_bit_pack : albedo;
+}
+
 void get_colors(in vec3 albedo, 
 				in float metalness, 
-				in float roughness, 
+				in float roughness,
 				out vec3 cspec, 
 				out vec3 cdiff, 
-				out vec3 csub, 
+				out vec3 csub,
+				inout vec3 nsub,
 				out float subsurface, 
 				out float roughness_epidermal, 
 				out float subsurface_mask)
 {
 	UnpackMetalSubsurface(metalness, subsurface);
 	subsurface_mask = ceil(max(0.0, subsurface - 0.001));
+	bit_unpack_albedo_normal(albedo, nsub, subsurface_mask);
 	#ifdef JON_MOD_DEBUG_GREY_WORLD
 		albedo = vec3(0.5);
 	#endif
     cdiff = albedo * (1.0 - metalness);
-	csub = (sqrt(cdiff) * JON_MOD_SUBSURFACE_EPIDERMAL_TINT) * subsurface_mask;//we could bitpack different races and etniceties 
-//	cdiff *= (1.0 - subsurface);
+	csub = (sqrt(cdiff * JON_MOD_SUBSURFACE_EPIDERMAL_TINT)) * subsurface_mask;//we could bitpack different races and etniceties 
+//	cdiff *= (1.0 - subsurface * subsurface_mask);
     cspec = mix(vec3(mix(0.04, JON_MOD_SUBSURFACE_EPIDERMAL_F0, subsurface_mask)), albedo, metalness);
 	get_subdermal_roughness(cspec, 
 							roughness, 
