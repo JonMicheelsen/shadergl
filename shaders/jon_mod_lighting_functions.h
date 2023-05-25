@@ -152,7 +152,7 @@ vec3 combined_ambient_brdf(samplerCube filtered_env_map, vec3 cspec, vec3 cdiff,
 {
 	int lowest_mip = max_spec_level_less_strict(filtered_env_map);
 	float n_dot_v = dot(normal, view);
-	vec3 reflection = (view - 2.0 * normal * n_dot_v);//view and normal are both normalized, so we don't need to too.
+	vec3 reflection = -(view - 2.0 * normal * n_dot_v);//view and normal are both normalized, so we don't need to too.
 	n_dot_v = max(0.0, n_dot_v);
 	//chan_diffuse is now baked into to T_preintegrated_GGX b channel
 	vec3 env_brdfs = textureLod(T_preintegrated_GGX, vec2(roughness, n_dot_v), 0).xyz;
