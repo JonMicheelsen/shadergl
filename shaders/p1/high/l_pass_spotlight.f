@@ -76,23 +76,28 @@ void main()
 	
 	vec3 Normal;
 	RI_GBUFFER_NORMAL0(Normal);
+	float Metalness;
+	float Smoothness;
+	RI_GBUFFER_METAL_SMOOTH(Metalness, Smoothness);
 	
-	float3 L = d.xyz - Normal*LightDistance*0.5f;
+	float3 L = d.xyz - Normal * LightDistance * 0.5f;
 	
 	vec3 l;// = normalize(IO_apex - view_pos);
 	l = normalize(-L);
 	float n_dot_l = saturate(dot(Normal, l));
-	if (n_dot_l <= 0) {
+	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING	
+		float SubsurfaceMask = max(0.0, ceil(0.5 - Metalness));
+		if (n_dot_l + SubsurfaceMask <= 0.0)	{
+	#else
+		if (n_dot_l <= 0.0)	{
+	#endif
+		LPASS_SHAPE_EARLY_DISCARD()
 		discard;
 	}
-
 	vec3 v = normalize(-view_pos);
 	
 	vec3 Albedo;
-	float Metalness;
-	float Smoothness;
 	RI_GBUFFER_BASECOLOR(Albedo);
-	RI_GBUFFER_METAL_SMOOTH(Metalness, Smoothness);
 	
 	float Roughness = smooth2rough(Smoothness);
 
@@ -102,7 +107,6 @@ void main()
 	vec3 csub = vec3(0);
 	vec3 SubsurfaceNormal = Normal;
 	float Subsurface = 0;
-	float SubsurfaceMask = 0;
 	float RoughnessEpidermal = 0.5;
 		get_colors(	Albedo, 
 					Metalness, 
@@ -118,9 +122,8 @@ void main()
 		get_colors(Albedo, Metalness, cspec, cdiff);
 	#endif
 
+	float n_dot_l_sss = sss_wrap_dot(l, SubsurfaceNormal, Subsurface);
 
-	get_colors(Albedo, Metalness, cspec, cdiff);
-	
 	#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
 		vec3 lightcolor = vec3(0.0, 0.0, 1.0);
 	#else	
@@ -138,7 +141,7 @@ void main()
 //		#endif
 //	#else
 //		#ifdef LOCALSPEC
-			light = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0.0, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, false) * lightcolor;
+			light = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0.0, n_dot_l_sss * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
 //		#else
 //			light = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, false) * lightcolor;
 //		#endif
@@ -166,7 +169,7 @@ void main()
 	}
 
 	finalColor = DEFERRED_HACK_TO_sRGB(finalColor);
-	finalColor.rgb = clamp(finalColor.rgb, 0, 2)*diffuse_occlusion; // reduce flares
+	finalColor.rgb = clamp(finalColor.rgb, 0, 2) * diffuse_occlusion; // reduce flares
 
 	OUT_Color.rgb = finalColor.rgb;
 	OUT_Color.a = 0;

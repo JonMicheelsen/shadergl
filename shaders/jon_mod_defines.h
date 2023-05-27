@@ -18,11 +18,17 @@
 // Specular scale is 0.08, so (0.28 * 0.08), etc...
 #define JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	#define JON_MOD_ENABLE_SUBSURFACE_BIAS_BLUR_TRICK
-	#define JON_MOD_ENABLE_SUBSURFACE_BLUR_PARALLAX_DEPTH 0.01
-	#define JON_MOD_SUBSURFACE_SUBDERMAL_ROUGHNESS 0.25
-	#define JON_MOD_SUBSURFACE_EPIDERMAL_ROUGHNESS -0.15
+	#define JON_MOD_SUBSURFACE_SUBDERMAL_ROUGHNESS 0.5
+	#define JON_MOD_SUBSURFACE_EPIDERMAL_ROUGHNESS -0.1
 	#define JON_MOD_SUBSURFACE_EPIDERMAL_TINT vec3(0.968750, 0.833764, 0.483325) //vec3(0.910580, 0.338275, 0.271800) vec3(1.000000,0.088964,0.072095)
-	#define JON_MOD_SUBSURFACE_EPIDERMAL_F0 0.0224f
+	#define JON_MOD_SUBSURFACE_EPIDERMAL_F0 0.0464f//0.0224f
+	#define JON_MOD_SUBSURFACE_WRAP_SCALE 0.25
+	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_HUMAN 		vec3(1.0	,0.263	,0.067) // Human, just this for now... TODO implement the rest
+	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_TELADI 		vec3(0.749	,0.569	,0.267) // losely based on berber skink
+	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_BORON 		vec3(0.263	,0.882	,0.859) // blue greenish laguna like
+	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_PARANID 		vec3(0.31	,0.247	,0.792) // losely based on blue blooded horse shoe and purple blooded red rock crabs
+	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_FOLIAGE 		vec3(0.6	,1.0	,0.06) // spring leaves ish, good baseline
+	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_ICE_ASTEROID 	vec3(0.357	,0.78	,1.0) //water ice
 #define JON_MOD_ENABLE_FULL_ANGLE_CORRECTED_CHARACTER_NORMAL_COMPOSITING
 
 #define JON_MOD_USE_RETROREFLECTIVE_DIFFUSE_MODEL//This upgrades EvalBRDF() to include this https://advances.realtimerendering.com/s2018/MaterialAdvancesInWWII-course_notes.pdf Which UE5 also uses.
@@ -40,18 +46,19 @@
 	//near and far
 	//#define JON_MOD_SSSHADOWS_SUPPORT_BOTH_PRIMARY_LIGHTS //default on
 	#define JON_MOD_SSSHADOWS_MAX_STEPS 32 //default 64, it's pretty rare to ever go this high be aware this is a times 2
+	#define JON_MOD_SSSHADOWS_DITHER 2.0 //default 4.0
 	//far
 	#define JON_MOD_SSSHADOWS_FADE_DISTANCE 5000.0 //not all PCF shadows have the same distance, so some lods will still shadow pop if we just use that, so with this we can enforce a max distance where everything will use Screenspace Shadows
-	#define JON_MOD_SSSHADOWS_DITHER 8.0 //default 1
 	#define JON_MOD_SSSHADOWS_RAY_MAX_DISTANCE 100.0 //default 100.0 = 100.0m distance. I think 1 is about 10cm, so a hundred meters is 10000
 	#define JON_MOD_SSSHADOWS_BIAS 1.0 //default 10.0 = 1.0m
 	#define JON_MOD_SSSHADOWS_MAX_THICKNESS 1000.0 //default 1000.0 = 100.0m shadows thicker than this from the camera are ignored, so as to things near ain't casting shadows on things far
 	//near
-	#define JON_MOD_SSSHADOWS_FADE_DISTANCE_NEAR 25.0 // 25.0m
-	#define JON_MOD_SSSHADOWS_MAX_THICKNESS_NEAR 0.05 //5.0cm
-	#define JON_MOD_SSSHADOWS_RAY_MAX_DISTANCE_NEAR 0.15 //default 15cm
+	#define JON_MOD_SSSHADOWS_FADE_DISTANCE_NEAR 20.0 // 20.0m
+	#define JON_MOD_SSSHADOWS_MAX_THICKNESS_NEAR 0.1 //10.0cm
+	#define JON_MOD_SSSHADOWS_RAY_MAX_DISTANCE_NEAR 0.1 //default 10cm
 	#define JON_MOD_SSSHADOWS_BIAS_NEAR 0.05 //5.0cm
 	#define JON_MOD_SSSHADOWS_ATTENUATION_NEAR 0.03125 //optional soft fade near shadows
+	#define JON_MOD_SSSHADOWS_DEPTH_MIP 0
 	//filtering
 //	#define JON_MOD_SSSHADOWS_FILTER // filters with screenspace derivatives, might give very different result at different resolution
 //	#define JON_MOD_SSSHADOWS_DEBUG_MODE
@@ -68,6 +75,7 @@
 // red = l_star_light1.
 //#define JON_MOD_DEBUG_DEBUG_LIGHT_TYPES_REACH
 //#define JON_MOD_DEBUG_DISABLE_AMBIENT_LIGHT
+//#define JON_MOD_DEBUG_SUBSURFACE
 //debugs
 
 //#define JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN

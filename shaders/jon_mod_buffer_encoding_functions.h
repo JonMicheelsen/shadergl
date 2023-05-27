@@ -103,7 +103,7 @@ void bit_unpack_albedo_normal(inout vec3 albedo, inout vec3 subsurface_normal, i
 	float scale_normal = 1.0 / (1.0 - scale_bit_pack);
 
 	//assumes subsurface_normal is passed in defined as the regular normal, to avoid NaN's, if it was 0!
-	subsurface_normal = subsurface_mask > 0.0 ? ((albedo * scale - floor(albedo * scale)) * scale_normal) * 2.0 - 1.0 : subsurface_normal;
+	subsurface_normal = normalize(mix(((albedo * scale - floor(albedo * scale)) * scale_normal) * 2.0 - 1.0, subsurface_normal, subsurface_mask));
 	albedo = subsurface_mask > 0.0 ? floor(albedo * scale) * scale_bit_pack : albedo;
 }
 
@@ -120,12 +120,12 @@ void get_colors(in vec3 albedo,
 {
 	UnpackMetalSubsurface(metalness, subsurface);
 	subsurface_mask = ceil(max(0.0, subsurface - 0.001));
-	bit_unpack_albedo_normal(albedo, nsub, subsurface_mask);
+	bit_unpack_albedo_normal(albedo, nsub, subsurface_mask * subsurface);
 	#ifdef JON_MOD_DEBUG_GREY_WORLD
 		albedo = vec3(0.5);
 	#endif
     cdiff = albedo * (1.0 - metalness);
-	csub = (sqrt(cdiff * JON_MOD_SUBSURFACE_EPIDERMAL_TINT)) * subsurface_mask;//we could bitpack different races and etniceties 
+	csub = JON_MOD_SUBSURFACE_SCATTER_RADIUS_HUMAN * subsurface;//TODO we could bitpack different things?
 //	cdiff *= (1.0 - subsurface * subsurface_mask);
     cspec = mix(vec3(mix(0.04, JON_MOD_SUBSURFACE_EPIDERMAL_F0, subsurface_mask)), albedo, metalness);
 	get_subdermal_roughness(cspec, 

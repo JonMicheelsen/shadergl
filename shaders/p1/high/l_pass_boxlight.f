@@ -58,11 +58,21 @@ void main()
 	vec3 Normal;
 	RI_GBUFFER_NORMAL0(Normal);
 	
+	float Metalness;
+	float Smoothness;
+	RI_GBUFFER_METAL_SMOOTH(Metalness, Smoothness);
+
 	float n_dot_l = saturate(dot(Normal, normalize(L)));
-	if (n_dot_l <= 0.0f) {
+	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING	
+		float SubsurfaceMask = max(0.0, ceil(0.5 - Metalness));
+		if (n_dot_l + SubsurfaceMask <= 0.0)	{
+	#else
+		if (n_dot_l <= 0.0)	{
+	#endif
 		LPASS_SHAPE_EARLY_DISCARD()
 		discard;
 	}
+
 	
 	vec4 finalColor = vec4(0);
 	vec3 l0 = IO_l1 - view_pos;
@@ -71,10 +81,7 @@ void main()
 	vec3 v = normalize(-view_pos.xyz);
 	
 	vec3 Albedo;
-	float Metalness;
-	float Smoothness;
 	RI_GBUFFER_BASECOLOR(Albedo);
-	RI_GBUFFER_METAL_SMOOTH(Metalness, Smoothness);
 	
 	float Roughness = smooth2rough(Smoothness);
 
@@ -84,7 +91,6 @@ void main()
 	vec3 csub = vec3(0);
 	vec3 SubsurfaceNormal = Normal;
 	float Subsurface = 0;
-	float SubsurfaceMask = 0;
 	float RoughnessEpidermal = 0.5;
 		get_colors(	Albedo, 
 					Metalness, 
@@ -125,9 +131,9 @@ void main()
 #endif
 */
 #ifdef LOCALSPEC
-	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, n_dot_l * IO_SpecularIntensity, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, true) * clight;
+	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, n_dot_l * IO_SpecularIntensity, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, true) * clight;
 #else
-	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, false) * clight;
+	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * clight;
 #endif
 
 	float atten = PSquareDistanceAtt;

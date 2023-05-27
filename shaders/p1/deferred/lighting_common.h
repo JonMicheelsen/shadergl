@@ -103,11 +103,12 @@ vec3 EvalBRDF(	in vec3 cspec,
 				in float roughness, 
 				in vec3 l, 
 				in vec3 v, 
-				in vec3 n, 
+				in vec3 n,
 				in vec3 mask, 
 				in float subsurface, 
 				in float roughness_epidermal, 
 				in vec3 csub,
+				in vec3 nsub,
 				in bool fullV)
 {
 	float n_dot_v_raw = dot(n, v);
@@ -153,7 +154,7 @@ vec3 EvalBRDF(	in vec3 cspec,
 #ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	D = mix(D, D_GGX(pow4(roughness_epidermal), n_dot_h), subsurface);
 	roughness = mix(roughness, roughness_epidermal, subsurface);
-	csub *= disney_sss(n_dot_l_raw, n_dot_v, l_dot_h, roughness, subsurface);
+	csub = sss_direct_approx(abs(dot(l, nsub)), csub, cdiff);
 #endif	
 	float a = pow2(roughness);
 	float a2 = pow2(a);
@@ -177,11 +178,11 @@ vec3 EvalBRDF(	in vec3 cspec,
 //overloads
 vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n)
 {
-	return EvalBRDF(cspec, cdiff, roughness, l, v, n, vec3(vec2(1.0), 0.0), 0.0, 0.0, vec3(0.0), false);
+	return EvalBRDF(cspec, cdiff, roughness, l, v, n, vec3(vec2(1.0), 0.0), 0.0, 0.0, vec3(0.0), n, false);
 }
 vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n, in vec2 mask)
 {
-	return EvalBRDF(cspec, cdiff, roughness, l, v, n, vec3(mask, 0.0), 0.0, 0.0, vec3(0.0), false);
+	return EvalBRDF(cspec, cdiff, roughness, l, v, n, vec3(mask, 0.0), 0.0, 0.0, vec3(0.0), n, false);
 }
 
 // simplified cook torrance

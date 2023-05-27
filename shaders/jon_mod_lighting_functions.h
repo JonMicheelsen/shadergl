@@ -47,8 +47,9 @@ float ScreenSpaceShadows(	in vec3 light_ray,
 		// Ensure the UV coordinates are inside the screen
 		if(max(fade.x, fade.y) > 1.0)
 			break;
+
 		
-		float depth_step = 1.0 / GetDepth(ray_uv * aspect + 0.5 + uv2clip(fract(dither)) * texel_size);
+		float depth_step = 1.0 / GetDepth(ray_uv * aspect + 0.5 + uv2clip(fract(dither + step_size)) * texel_size * JON_MOD_SSSHADOWS_DITHER);
 		dither += step_size;
 		float depth_delta = ray_pos.z * 10.0 - depth_step - depth_bias;
 		
@@ -104,23 +105,14 @@ float chan_diff(float a2, float n_dot_v, float n_dot_l, float v_dot_h, float n_d
 	return INVPI * (fd + fb);
 	
 }
-vec3 sss(float n_dot_l_raw, float subsurface)
+float sss_wrap_dot(vec3 l, vec3 n, float subsurface)
 {
-	float n_dot_l = saturate(n_dot_l_raw);
-	float n_dot_l_inv = saturate(-n_dot_l_raw);
-	//modified version of iq's https://www.shadertoy.com/view/llXBWn approximation
-	return (vec3(1.0, 0.1, 0.01) * 0.2 * (1.0 - n_dot_l) * pow(1.0 - n_dot_l_inv, 3.0 / (subsurface + 0.001)) * max(0.0, subsurface - JON_MOD_SUBSURFACE_EPIDERMAL_F0) + n_dot_l * INVPI);//0.0464 Human skin highest index of refraction(IOR)1.55 = 0.58 * 0.08
+	return max(0.0, (dot(l, n) - JON_MOD_SUBSURFACE_WRAP_SCALE * subsurface) * (1.0 / (1.0 - JON_MOD_SUBSURFACE_WRAP_SCALE * subsurface)));
 }
 
-vec3 disney_sss(in float n_dot_l_raw, in float n_dot_v, in float l_dot_h, in float roughness, in float subsurface)
+vec3 sss_direct_approx(float n_dot_l_abs, vec3 subsurface_scatter_radius, vec3 surface_color)
 {
-	float n_dot_l = saturate(n_dot_l_raw);
-	float Fl = pow5(1.0 - n_dot_l), Fv = pow5(1.0 - n_dot_v);
-	float Fss90 = l_dot_h * l_dot_h * roughness;
-	float Fss = mix(1.0, Fss90, Fl) * mix(1.0, Fss90, Fv);
-	float ss = 1.25 * (Fss * (1. / (n_dot_l + n_dot_v) - .5) + .5);
-	
-	return ss * sss(n_dot_l_raw, subsurface);
+	return max(vec3(0.0), exp(-3.0 * n_dot_l_abs / (subsurface_scatter_radius + 0.001)) * subsurface_scatter_radius * surface_color) * 0.2;
 }
 
 // https://iryoku.com/downloads/Practical-Realtime-Strategies-for-Accurate-Indirect-Occlusion.pdf
@@ -146,7 +138,6 @@ int max_spec_level_less_strict(samplerCube filtered_env_map)
 {
 	return textureQueryLevels(filtered_env_map) - 3;//Egosoft, You had -2 in yours, that's 4x4 pixels. I would not recommend at least 8x8
 }
-
 
 vec3 combined_ambient_brdf(samplerCube filtered_env_map, vec3 cspec, vec3 cdiff, vec3 normal, vec3 view, float roughness, float ambient_occlusion, vec4 ssr, vec3 flat_diffuse_addition)
 {
@@ -188,7 +179,6 @@ vec3 combined_ambient_brdf(samplerCube filtered_env_map, vec3 cspec, vec3 cdiff,
 #ifdef JON_MOD_DEBUG_DISABLE_AMBIENT_LIGHT
 	return vec3(0.0);
 #endif	
-	
 	return ambient_specular + ambient_diffuse;
 }
 

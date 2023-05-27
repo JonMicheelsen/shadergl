@@ -38,17 +38,25 @@ void main()
 	vec3 Normal;
 	RI_GBUFFER_NORMAL0(Normal);
 	
+	float Metalness;
+	float Smoothness;
+	RI_GBUFFER_METAL_SMOOTH(Metalness, Smoothness);
+	
 	float n_dot_l = saturate(dot(l, Normal));
-	if (n_dot_l <= 0.0f) {
+	float SubsurfaceMask = 0;
+	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING	
+		SubsurfaceMask = max(0.0, ceil(0.5 - Metalness));
+		if (n_dot_l + SubsurfaceMask <= 0.0)
+	#else
+		if (n_dot_l <= 0.0)
+	#endif
+	{
 		LPASS_SHAPE_EARLY_DISCARD()
 		discard;
 	}
 
 	vec3 Albedo;
-	float Metalness;
-	float Smoothness;
 	RI_GBUFFER_BASECOLOR(Albedo);
-	RI_GBUFFER_METAL_SMOOTH(Metalness, Smoothness);
 	
 	float Roughness = smooth2rough(Smoothness);
 	
@@ -56,12 +64,12 @@ void main()
 	
 	vec3 cspec = vec3(0);
 	vec3 cdiff = vec3(0);
-	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	vec3 csub = vec3(0);
 	vec3 SubsurfaceNormal = Normal;
 	float Subsurface = 0;
-	float SubsurfaceMask = 0;
 	float RoughnessEpidermal = 0.5;
+	
+	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 		get_colors(	Albedo, 
 					Metalness, 
 					Roughness, 
@@ -75,10 +83,11 @@ void main()
 	#else
 		get_colors(Albedo, Metalness, cspec, cdiff);
 	#endif
-	
+
 	#ifndef LOCALSPEC
 		cspec *= 0.0f;
 	#endif
+	float n_dot_l_sss = sss_wrap_dot(l, SubsurfaceNormal, Subsurface);
 
 	float radius = IO_radius*0.9;
 	float a = pow(saturate(1.0f-pow(LightDistance/radius,4.0f)), 2.0f);
@@ -86,18 +95,20 @@ void main()
 	float PSquareDistanceAtt = saturate(a/b);
 	
 	float4 finalColor;
+
+//	finalColor.rgb = n_dot_l * lightcolor;
+	
 	#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
 		vec3 lightcolor = vec3(0.0, 1.0, 0.0);
 	#else	
 		vec3 lightcolor = IO_lightcolor.rgb;
 	#endif
-//	finalColor.rgb = n_dot_l * lightcolor;
-	
+
 	//TODO @Timon this is all so wrong, but historical reasons... 
 #ifdef LOCALSPEC
-	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, IO_SpecularIntensity * n_dot_l, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, true) * lightcolor;
+	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, IO_SpecularIntensity * n_dot_l, n_dot_l_sss * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, true) * lightcolor;
 #else
-	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, false) * lightcolor;
+	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0, n_dot_l_sss * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
 #endif
 
 	float atten = PSquareDistanceAtt;
@@ -120,6 +131,7 @@ void main()
 	OUT_Color.a = 0;
 
 	LPASS_SHAPE_FINAL_ATTEN(atten)
+
 #ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES_REACH
 	OUT_Color.rgb = lightcolor;
 #endif

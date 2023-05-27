@@ -384,7 +384,7 @@ void main()
 		// diffuse contribution
 		vec3 Idiff = lightcolor * diffndotl * diffuse_occlusion;
 	//	finalColor.rgb += Idiff * cdiff/PI ;
-		finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, ldiff, v, Normal, vec3(diffndotl/* * diffuse_occlusion*/, 0, diffndotl), Subsurface, RoughnessEpidermal, csub, false) * lightcolor;
+		finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, ldiff, v, Normal, vec3(diffndotl/* * diffuse_occlusion*/, 0, diffndotl), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
 
 
 		// energy convservation using spec D mod
@@ -402,7 +402,7 @@ void main()
 		vec3 Ispec = IO_SpecIntensity * lightcolor * specatten * n_dot_l;
 		// vec3 Ispec = IO_SpecIntensity * IO_Intensity * IO_lightcolor.rgb * specatten * diffndotl;
 //		finalColor.rgb += Ispec * EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec2(0,1));
-		finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec3(0.0, n_dot_l * specatten * IO_SpecIntensity, 0.0), Subsurface, RoughnessEpidermal, csub, true) * lightcolor;
+		finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec3(0.0, n_dot_l * specatten * IO_SpecIntensity, 0.0), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, true) * lightcolor;
 
 	}
 	finalColor.rgb *= atten;
