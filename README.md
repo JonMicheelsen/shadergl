@@ -12,7 +12,7 @@ Add "-prefersinglefiles"  without the quotation marks to the games launch direct
 
 Alternatively, if you are already familiar with using git, and have for instance GitHubDesktop installed you can check out the project mapped directly to the "shadergl" folder and just get updates on the fly, I try to push whenever I have finished part of a feature I'm working on, sometimes several times a day. Don't forget "-prefersinglefiles". I highly recommend this instead of the above!
 
-
-If you want to play around with the setting all the fautures are exposed in: "jon_mod_defines.h" found in the "shaders" folder. Note some things may be temp and not do anything or not work in there, so play around with it at your own peril. :P
+I don't like feature "x"!?
+If you want to play around with the settings, all the features are exposed in: "jon_mod_defines.h" found in the "shaders" folder. Note some things in there may be temp and not do anything or not work if other things are not running, so play around with it at your own peril. :D
 
 
