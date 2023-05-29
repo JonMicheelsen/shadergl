@@ -1510,8 +1510,10 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 	lcolors[1] = XR_TO_linearRGB(V_lightcolor2.rgb) * F_globallightscale;
 #endif
 #ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
-	lcolors[0] = vec3(1.0, 0.0, 0.0);
-	lcolors[1] = vec3(1.0, 0.0, 0.0);
+	float level = dot(LUM_ITU601, lcolors[0]);
+	lcolors[0] = vec3(level, 0.0, 0.0);
+	level = dot(LUM_ITU601, lcolors[1]);
+	lcolors[1] = vec3(0.0, level, level);
 #endif 
 	for (int i = 0; i < 2; ++i) {
 		direct_occlusions[i] = vec2(saturate(dot(ldirs[i], wn)), SubsurfaceMask * sss_wrap_dot(ldirs[i], wnsub, Subsurface));

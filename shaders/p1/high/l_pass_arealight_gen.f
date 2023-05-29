@@ -195,6 +195,14 @@ float getPhysicalAtt(in vec3 lraw) {
 
 void main()
 {
+	#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
+		float level = dot(LUM_ITU601, IO_lightcolor.rgb);
+		vec3 lightcolor = vec3(level, level * 0.5, 0.0);
+	#else	
+		vec3 lightcolor = IO_lightcolor.rgb;
+	#endif
+	
+
 	vec3 view_pos; // needed
 	RetrieveZBufferViewPos(view_pos);
 
@@ -246,6 +254,12 @@ void main()
 	atten *= diratten;
 
 	
+	#ifdef JON_MOD_USE_DISCARD_AREALIGHT_MORE
+		if(atten < 0)
+		{
+			discard;
+		}
+	#endif
 
 	float sizeMin = min(lsize.x, lsize.y);
 	float sizeMax = max(lsize.x, lsize.y);
@@ -255,84 +269,100 @@ void main()
 	// accumulation
 	float diffuse_occlusion = 1.0f;
 	vec4 finalColor = vec4(0);
-	if(atten > 0)
-	{
+	
+	vec3 Normal;
+	RI_GBUFFER_NORMAL0(Normal);
+	
+	float Metalness;
+	float Smoothness;
+	RI_GBUFFER_METAL_SMOOTH(Metalness, Smoothness);
+	
+	float diffndotl = saturate(dot(Normal, ldiff));
+		
+	float SubsurfaceMask = 0;
+	#ifdef JON_MOD_USE_DISCARD_AREALIGHT_MORE
+		#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING	
+			SubsurfaceMask = max(0.0, ceil(0.5 - Metalness));
+			if (diffndotl + SubsurfaceMask <= 0.0)
+		#else
+			if (diffndotl <= 0.0)
+		#endif
+		{
+		//	LPASS_SHAPE_EARLY_DISCARD()
+			discard;
+		}
+	#endif
+	
+	#ifndef JON_MOD_USE_DISCARD_AREALIGHT_MORE
+		if(atten > 0)
+		{
+	#endif
 
-		//vec3 Normal; // needed
-		//vec3 Albedo; // needed
-		//vec3 Glow; // not needed
-		//float Metalness; // needed
-		//float Smoothness; // needed
-		//RETRIEVE_GBUFFER(Normal, Albedo, Glow, Metalness, Smoothness);
+	vec3 Albedo;
+	RI_GBUFFER_BASECOLOR(Albedo);
+	
+	float Roughness = smooth2rough(Smoothness);//was Smoothness*Smoothness - changed for consistency
+	#ifndef JON_MOD_ROUGHNESS_REMAP
+		Roughness = max(Roughness, 0.05f); // avoid nans after squared divisions
+	#endif	
 
-		vec3 Normal;
-		vec3 Normal2;
-		vec3 Albedo;
-		vec3 Glow;
-		float GlowStr;
-		float Metalness;
-		float Smoothness;
-		RI_GBUFFER(Normal, Albedo, Metalness, Smoothness);
-		float Roughness = smooth2rough(Smoothness);//was Smoothness*Smoothness - changed for consistency
-
-		float diffndotl = saturate(dot(Normal, ldiff));
-		vec3 cspec = vec3(0);
-		vec3 cdiff = vec3(0);
-		#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+	vec3 cspec = vec3(0);
+	vec3 cdiff = vec3(0);
+	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 		vec3 csub = vec3(0);
 		vec3 SubsurfaceNormal = Normal;
 		float Subsurface = 0;
-		float SubsurfaceMask = 0;
 		float RoughnessEpidermal = 0.5;
-			get_colors(	Albedo, 
-						Metalness, 
-						Roughness, 
-						cspec, 
-						cdiff, 
-						csub, 
-						SubsurfaceNormal,
-						Subsurface, 
-						RoughnessEpidermal, 
-						SubsurfaceMask);
-		#else
-			get_colors(Albedo, Metalness, cspec, cdiff);
-		#endif
+		get_colors(	Albedo, 
+					Metalness, 
+					Roughness, 
+					cspec, 
+					cdiff, 
+					csub, 
+					SubsurfaceNormal,
+					Subsurface, 
+					RoughnessEpidermal, 
+					SubsurfaceMask);
+	#else
 		
-		#ifndef JON_MOD_ROUGHNESS_REMAP
-			Roughness = max(Roughness, 0.05f); // avoid nans after squared divisions
-		#endif
-		// float a = max(Roughness*Roughness, 0.0001f);
-		float a = Roughness*Roughness;
-		float a2 = a*a;
-		float norm = 1.0 / (PI * a2); // factor used for spec mod
+		get_colors(Albedo, Metalness, cspec, cdiff);
+	#endif
 
-		// AO used to attenuate diffuse component
-		
-		if (B_ssao_enabled) {
-			float ambient_occlusion = GetSSAO();
-			// weight strength over distance
-			float ssao_weight = 0.5*(linattenA*linattenA);
-			diffuse_occlusion = saturate(ambient_occlusion);
-		}
-		else /**/{//TODO @Timon without this the attenuation breaks with vulkan nvidia-381.22 geforce 650ti on linux
-			//looks like either glslang or nvidia-driver bug, or I'm not aware of some detail of the spec
-			diffuse_occlusion = 1.0f;
-		}
-		#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
-			vec3 lightcolor = vec3(0.0, 1.0, 1.0);
-		#else	
-			vec3 lightcolor = IO_lightcolor.rgb;
-		#endif
+	// float a = max(Roughness*Roughness, 0.0001f);
+	float a = Roughness*Roughness;
+	float a2 = a*a;
+	float norm = 1.0 / (PI * a2); // factor used for spec mod
 
+	// AO used to attenuate diffuse component
+	
+	if (B_ssao_enabled) {
+		float ambient_occlusion = GetSSAO();
+		// weight strength over distance
+		float ssao_weight = 0.5*(linattenA*linattenA);
+		diffuse_occlusion = saturate(ambient_occlusion);
+	}
+	else /**/{//TODO @Timon without this the attenuation breaks with vulkan nvidia-381.22 geforce 650ti on linux
+		//looks like either glslang or nvidia-driver bug, or I'm not aware of some detail of the spec
+		diffuse_occlusion = 1.0f;
+	}
+
+	vec3 v = normalize(-view_pos);
+	
+	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+		float n_dot_l_sss = sss_wrap_dot(ldiff, SubsurfaceNormal, Subsurface); //since we can't shadow we approximate with this instead
+		//finalColor.rgb += saturate(dot(Normal, ldiff)) * diffuse_occlusion * INVPI * lightcolor;
+		vec3 h = normalize(ldiff + v);
+		finalColor.rgb += (cdiff * lightcolor) * (chan_diff(a2, dot(v, Normal), diffndotl, saturate(dot(v, h)), saturate(dot(Normal, h)), 1.0, cspec) * diffuse_occlusion * diffndotl);
+		finalColor.rgb += sss_direct_approx(abs(dot(ldiff, SubsurfaceNormal)), csub, cdiff) * n_dot_l_sss;
+	#else	
 		// diffuse contribution
 		vec3 Idiff = lightcolor * diffndotl * diffuse_occlusion;
 		finalColor.rgb += Idiff * cdiff/PI ;
-
-
-		vec3 v = normalize(-view_pos);
-		vec3 dir = reflect(-v, Normal);
+	#endif
+	
+	vec3 dir = reflect(-v, Normal);
 #define USE_TUBELIGHTMATH
-#ifdef USE_TUBELIGHTMATH
+	#ifdef USE_TUBELIGHTMATH
 		if (sizeMin > threshold) {
 			 L = planeRPM(dir, L);
 			// L = planeRPMb(dir, L);
@@ -340,37 +370,43 @@ void main()
 		else if (sizeMax > threshold) {
 			 L = tubeRPM(dir, L);
 		}
-#else
+	#else
 		if (sizeSum > threshold) {
 			L = planeRPM(dir, L);
 		}
-#endif
+	#endif
 		if (lradius > 0.0) {
 			L = sphereRPM(dir, L, lradius);
 		}
 
 		// energy convservation using spec D mod
 		float sizeGuess = lsize.x + lsize.y + lradius;
-		float solidAngleGuess = saturate( sizeGuess * invDistance );
-		float specatten = 1.0 / ( 1.0 + norm * solidAngleGuess );
+		float solidAngleGuess = saturate(sizeGuess * invDistance);
+		float specatten = 1.0 / (1.0 + norm * solidAngleGuess);
 		vec3 Lnorm = normalize(L);
 
 		// wrt to plane RPM
 		float n_dot_l = saturate(dot(Lnorm, Normal));
-	
+
 		// horizon mod
 		float horizon = 1.0 - n_dot_l;
 		horizon *= horizon;
 		horizon *= horizon;
 		specatten = specatten - specatten * horizon;
 
-
-		// specular contribution
-		vec3 Ispec = IO_SpecIntensity * lightcolor * specatten * n_dot_l;
-		// vec3 Ispec = IO_SpecIntensity * IO_Intensity * IO_lightcolor.rgb * specatten * diffndotl;
-		finalColor.rgb += Ispec * EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec2(0,1));
+		#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+			finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec3(0.0, specatten * n_dot_l * IO_SpecIntensity, 0.0), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
+		#else
+			// specular contribution
+			// vec3 Ispec = IO_SpecIntensity * IO_Intensity * IO_lightcolor.rgb * specatten * diffndotl;
+			vec3 Ispec = IO_SpecIntensity * lightcolor * specatten * n_dot_l;
+			finalColor.rgb += Ispec * EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec2(0,1));
+		#endif
+//		finalColor.rgb = IO_SpecIntensity * lightcolor * n_dot_l * EvalBRDFSimpleSpec(cspec, Roughness, Lnorm, v, Normal);
 	// finalColor.rgb = vec3(n_dot_l);
-	}
+	#ifndef JON_MOD_USE_DISCARD_AREALIGHT_MORE	
+		}
+	#endif
 	finalColor.rgb *= atten;
 
 /*	if (B_render_arealightshape) {
@@ -394,9 +430,7 @@ void main()
 	
 	OUT_Color.rgb = finalColor.rgb;
 	OUT_Color.a = 0;
-#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES_REACH
-	OUT_Color.rgb = lightcolor;
-#endif	
+	
 #ifdef LPASS_COUNT
 	OUT_Color *= FLOAT_SMALL_NUMBER;
 	OUT_Color.rgb += 1.0f / LPASS_COUNT;

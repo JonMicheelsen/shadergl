@@ -8,6 +8,7 @@
 
 //#define JON_MOD_SPECULAR_OVERSHOOT_FIX //default on, fixes geometric light white bright artefact
 #define JON_MOD_DISABLE_EGOSOFT_SMOOTHER_GRAZING_ANGLE //default on
+#define JON_MOD_FIX_TUBELIGHT_ATTENUATION//no more hard curtoffs
 
 #define JON_MOD_ROUGHNESS_REMAP // default on. Disney trick, since artists has a tendency to overuse the lower end of the roughness and neglect nuances in the high end, this one does a gentle remap improving both!
 #define JON_MOD_ROUGHNESS_REMAP_PRE_SQUARE_RANGE 0.4142f//default 0.4142f, at this point 0.5 = 0.5, 0 = 0.17 1=1
@@ -16,6 +17,7 @@
 // Human skin highest index of refraction(IOR)1.55 = 0.58 in unreal dieletric specular, or #94, rgb148, 58%brightness, as linear color
 // Human hair(and nails technically too) highest index of refraction(IOR)1.55 = 0.58 in unreal specular, or #94, rgb148,
 // Specular scale is 0.08, so (0.28 * 0.08), etc...
+
 #define JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	#define JON_MOD_ENABLE_SUBSURFACE_BIAS_BLUR_TRICK
 	#define JON_MOD_SUBSURFACE_SUBDERMAL_ROUGHNESS 0.5
@@ -41,12 +43,12 @@
 #define JON_MOD_SSR_WIDER_ROUGH_SCATTER
 #define JON_MOD_SSR_ANGLES_SHARPEN_POW5
 #define JON_MOD_SSR_DISCARD_BAD_NORMAL_MAPPING
-
+#define JON_MOD_USE_DISCARD_AREALIGHT_MORE
 #define JON_MOD_SSSHADOWS //default on
 	//near and far
 	//#define JON_MOD_SSSHADOWS_SUPPORT_BOTH_PRIMARY_LIGHTS //default on
 	#define JON_MOD_SSSHADOWS_MAX_STEPS 32 //default 64, it's pretty rare to ever go this high be aware this is a times 2
-	#define JON_MOD_SSSHADOWS_DITHER 2.0 //default 4.0
+	#define JON_MOD_SSSHADOWS_DITHER 0.0 //default 4.0
 	//far
 	#define JON_MOD_SSSHADOWS_FADE_DISTANCE 5000.0 //not all PCF shadows have the same distance, so some lods will still shadow pop if we just use that, so with this we can enforce a max distance where everything will use Screenspace Shadows
 	#define JON_MOD_SSSHADOWS_RAY_MAX_DISTANCE 100.0 //default 100.0 = 100.0m distance. I think 1 is about 10cm, so a hundred meters is 10000
@@ -56,23 +58,25 @@
 	#define JON_MOD_SSSHADOWS_FADE_DISTANCE_NEAR 20.0 // 20.0m
 	#define JON_MOD_SSSHADOWS_MAX_THICKNESS_NEAR 0.1 //10.0cm
 	#define JON_MOD_SSSHADOWS_RAY_MAX_DISTANCE_NEAR 0.1 //default 10cm
-	#define JON_MOD_SSSHADOWS_BIAS_NEAR 0.05 //5.0cm
-	#define JON_MOD_SSSHADOWS_ATTENUATION_NEAR 0.03125 //optional soft fade near shadows
-	#define JON_MOD_SSSHADOWS_DEPTH_MIP 0
+	#define JON_MOD_SSSHADOWS_BIAS_NEAR 0.025 //5.0cm
+	#define JON_MOD_SSSHADOWS_ATTENUATION_NEAR 0.0 //optional soft fade near shadows
+	#define JON_MOD_SSSHADOWS_DEPTH_MIP 0 //sadly doesn't work, so leave it at 0
 	//filtering
-//	#define JON_MOD_SSSHADOWS_FILTER // filters with screenspace derivatives, might give very different result at different resolution
+	#define JON_MOD_SSSHADOWS_FILTER // filters with screenspace derivatives, might give very different result at different resolution
 //	#define JON_MOD_SSSHADOWS_DEBUG_MODE
 //		#define JON_MOD_SSSHADOWS_LIGHT_TO_DEBUG 0 //options are 0 or 1 only!
 
 //#define JON_MOD_DEBUG_GREY_WORLD
 //#define JON_MOD_DEBUG_WHITE_FURNACE_AMBIENT
 //#define JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
-// aqua = l_pass_arealight_gen.f
-// yellow = l_pass_arealight.f
-// magenta = l_pass_boxlight.f
+// orange = l_pass_arealight_gen.f
+// teal = l_pass_arealight.f
+// blue = l_pass_boxlight.f
 // green = l_pass_pointlight.f
-// blue = l_pass_spotlight.f
+// magenta = l_pass_spotlight.f
 // red = l_star_light1.
+// aqua = l_star_light2.
+// yellow = l_pass_envmap_probe.f
 //#define JON_MOD_DEBUG_DEBUG_LIGHT_TYPES_REACH
 //#define JON_MOD_DEBUG_DISABLE_AMBIENT_LIGHT
 //#define JON_MOD_DEBUG_SUBSURFACE

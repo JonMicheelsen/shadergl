@@ -17,6 +17,13 @@ in vec3 IO_lightcolor;
 
 void main()
 {
+	#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
+		float level = dot(LUM_ITU601, IO_lightcolor.rgb);
+		vec3 lightcolor = vec3(0.0, level, 0.0);
+	#else	
+		vec3 lightcolor = IO_lightcolor.rgb;
+	#endif
+
 	OUT_Color = vec4(0);
 	
 	vec3 view_pos;
@@ -98,11 +105,6 @@ void main()
 
 //	finalColor.rgb = n_dot_l * lightcolor;
 	
-	#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
-		vec3 lightcolor = vec3(0.0, 1.0, 0.0);
-	#else	
-		vec3 lightcolor = IO_lightcolor.rgb;
-	#endif
 
 	//TODO @Timon this is all so wrong, but historical reasons... 
 #ifdef LOCALSPEC

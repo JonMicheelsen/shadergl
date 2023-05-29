@@ -30,6 +30,13 @@ float getPhysicalAtt(in vec3 lraw) {
 */
 void main()
 {
+	#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
+		float level = dot(LUM_ITU601, IO_lightcolor.rgb);
+		vec3 lightcolor = vec3(level, 0.0, level);
+	#else	
+		vec3 lightcolor = IO_lightcolor.rgb;
+	#endif	
+	
 	OUT_Color = vec4(0);
 	
 	float index = IO_range_radius_index.z;
@@ -123,12 +130,6 @@ void main()
 	#endif
 
 	float n_dot_l_sss = sss_wrap_dot(l, SubsurfaceNormal, Subsurface);
-
-	#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
-		vec3 lightcolor = vec3(0.0, 0.0, 1.0);
-	#else	
-		vec3 lightcolor = IO_lightcolor.rgb;
-	#endif
 
 //	vec3 clight = lightcolor;
 

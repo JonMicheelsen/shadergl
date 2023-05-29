@@ -121,8 +121,9 @@ void main()
 			finalColor.a = saturate(finalColor.a);
 		#endif
 	}
+	
 #ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES_REACH
-	OUT_Color.rgb = lightcolor;
+	OUT_Color.rgb = finalColor.rgb * vec3(1.0, 0.5, 0.0);
 #endif
 #ifdef LPASS_BLEND_DEBUG
 	OUT_Color.rgb = IO_lightcolor.rgb;
