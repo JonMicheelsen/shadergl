@@ -203,7 +203,7 @@ void main()
 	#endif
 	
 	OUT_Color = vec4(0);
-	#if 1
+	#if 0
 		vec3 view_pos; // needed
 		RetrieveZBufferViewPos(view_pos);
 	

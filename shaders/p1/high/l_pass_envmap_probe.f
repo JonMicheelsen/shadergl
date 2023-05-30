@@ -86,8 +86,10 @@ void main()
 			//Jon comment, I've seen worse :P
 			ssr_mask -= SSR_GetHit(RTResolveSoft(T_ssr).a); // this seems like the least stupid way to get proper diffuse envmap probes while keeping specular SSR?:/
 		}
-
-	
+		if(ssr_mask <= 0)
+		{
+			discard;
+		}
 		{
 			vec3 R = reflect(-wv, wn);
 			R = EnvMapAdjust(PositionWS, R);

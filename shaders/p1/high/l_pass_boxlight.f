@@ -67,11 +67,13 @@ void main()
 		float Metalness;
 		float Smoothness;
 		RI_GBUFFER_METAL_SMOOTH(Metalness, Smoothness);
-	
-		float n_dot_l = saturate(dot(Normal, normalize(L)));
+		
+		vec3 l = normalize(L);
+		float n_dot_l = saturate(dot(Normal, l));
+		float SubsurfaceMask = 0;
 		#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING	
-			float SubsurfaceMask = max(0.0, ceil(0.5 - Metalness));
-			if (n_dot_l + SubsurfaceMask <= 0.0)	{
+			SubsurfaceMask = max(0.0, ceil(0.5 - Metalness));
+			if (n_dot_l + SubsurfaceMask <= 0.0){
 		#else
 			if (n_dot_l <= 0.0)	{
 		#endif
@@ -93,11 +95,11 @@ void main()
 	
 		vec3 cspec = vec3(0);
 		vec3 cdiff = vec3(0);
-		#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 		vec3 csub = vec3(0);
 		vec3 SubsurfaceNormal = Normal;
 		float Subsurface = 0;
 		float RoughnessEpidermal = 0.5;
+		#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 			get_colors(	Albedo, 
 						Metalness, 
 						Roughness, 
@@ -117,13 +119,12 @@ void main()
 		#endif
 		*/
 		
-			vec3 clight = lightcolor;
-		
-			float diffuse_occlusion = 1.0f;
-			if (B_ssao_enabled) {
-				float ambient_occlusion = GetSSAO();
-				diffuse_occlusion = saturate(ambient_occlusion);
-			}
+
+		float diffuse_occlusion = 1.0f;
+		if (B_ssao_enabled) {
+			float ambient_occlusion = GetSSAO();
+			diffuse_occlusion = saturate(ambient_occlusion);
+		}
 		/*	
 		#ifdef LOCALSPEC
 			finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, normalize(L), v, n, vec2(1, IO_SpecularIntensity)) * clight * n_dot_l;
@@ -132,18 +133,19 @@ void main()
 		#endif
 		*/
 		#ifdef LOCALSPEC
-			finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, n_dot_l * IO_SpecularIntensity, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, true) * clight;
+//			finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec3(0.0, specatten * n_dot_l * IO_SpecIntensity, 0.0), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
+			finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, n_dot_l * IO_SpecularIntensity, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, true) * lightcolor;
 		#else
-			finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * clight;
+			finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0.0, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
 		#endif
+
+		float atten = PSquareDistanceAtt;
+		finalColor.rgb *= atten;
 		
-			float atten = PSquareDistanceAtt;
-			finalColor.rgb *= atten;
+		finalColor.rgb = DEFERRED_HACK_TO_sRGB(finalColor.rgb);
 		
-			finalColor.rgb = DEFERRED_HACK_TO_sRGB(finalColor.rgb);
-		
-			OUT_Color.rgb = finalColor.rgb*diffuse_occlusion;
-			OUT_Color.a = 0;
+		OUT_Color.rgb = finalColor.rgb * diffuse_occlusion;
+		OUT_Color.a = 0;
 			
 		#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES_REACH
 			OUT_Color.rgb = lightcolor;
@@ -158,7 +160,7 @@ void main()
 			OUT_Color.rgb += 1.0f / LPASS_COUNT;
 		#endif
 	#else
-		OUT_Color.rgb = vec3(0.0, 0.0, 10);
+		OUT_Color.rgb = vec3(0.0, 0.0, 1);
 		OUT_Color.a = 1.0;
 	#endif
 }
