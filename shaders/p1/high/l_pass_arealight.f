@@ -458,7 +458,7 @@ void main()
 			OUT_Color.rgb += 1.0f / LPASS_COUNT;
 		#endif
 	#else
-		OUT_Color.rgb = vec3(4.0, 0.0, 2.0) * 0.0;
+		OUT_Color.rgb = vec3(4.0, 0.0, 2.0);
 		OUT_Color.a = 1.0;	
 	#endif
 	
