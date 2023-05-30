@@ -16,14 +16,15 @@
 // Human skin lowest index of refraction(IOR)1.35 = 0.28 in unreal dieletric specular, or #47, rgb71, 28%brightness, as linear color
 // Human skin highest index of refraction(IOR)1.55 = 0.58 in unreal dieletric specular, or #94, rgb148, 58%brightness, as linear color
 // Human hair(and nails technically too) highest index of refraction(IOR)1.55 = 0.58 in unreal specular, or #94, rgb148,
-// Specular scale is 0.08, so (0.28 * 0.08), etc...
+// Specular scale is 0.08, so (0.28 * 0.08) = 0.0224 (0.58 * 0.08) = 0.0464 , etc...
 
 #define JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	#define JON_MOD_ENABLE_SUBSURFACE_BIAS_BLUR_TRICK
 	#define JON_MOD_SUBSURFACE_SUBDERMAL_ROUGHNESS 0.5
 	#define JON_MOD_SUBSURFACE_EPIDERMAL_ROUGHNESS -0.1
 	#define JON_MOD_SUBSURFACE_EPIDERMAL_TINT vec3(0.968750, 0.833764, 0.483325) //vec3(0.910580, 0.338275, 0.271800) vec3(1.000000,0.088964,0.072095)
-	#define JON_MOD_SUBSURFACE_EPIDERMAL_F0 0.0464f//0.0224f
+	#define JON_MOD_SUBSURFACE_EPIDERMAL_F0 0.0224f	//se notes above
+	#define JON_MOD_SUBSURFACE_SUBDERMAL_SPEC_CAP 0.9	
 	#define JON_MOD_SUBSURFACE_WRAP_SCALE 0.25
 	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_HUMAN 		vec3(1.0	,0.263	,0.067) // Human, just this for now... TODO implement the rest
 	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_TELADI 		vec3(0.749	,0.569	,0.267) // losely based on berber skink
@@ -41,13 +42,13 @@
 #define JON_MOD_USE_LUMINANCE_FRESNEL
 	#define JON_MOD_USE_STRICTER_N_DOT_V
 #define JON_MOD_SSR_WIDER_ROUGH_SCATTER
-#define JON_MOD_SSR_ANGLES_SHARPEN_POW5
+//#define JON_MOD_SSR_ANGLES_SHARPEN_POW5
 #define JON_MOD_SSR_DISCARD_BAD_NORMAL_MAPPING
 #define JON_MOD_USE_DISCARD_AREALIGHT_MORE
 #define JON_MOD_SSSHADOWS //default on
 	//near and far
 	//#define JON_MOD_SSSHADOWS_SUPPORT_BOTH_PRIMARY_LIGHTS //default on
-	#define JON_MOD_SSSHADOWS_MAX_STEPS 32 //default 64, it's pretty rare to ever go this high be aware this is a times 2
+	#define JON_MOD_SSSHADOWS_MAX_STEPS 20 //default 64, it's pretty rare to ever go this high be aware this is a times 2
 	#define JON_MOD_SSSHADOWS_DITHER 0.0 //default 4.0
 	//far
 	#define JON_MOD_SSSHADOWS_FADE_DISTANCE 5000.0 //not all PCF shadows have the same distance, so some lods will still shadow pop if we just use that, so with this we can enforce a max distance where everything will use Screenspace Shadows
@@ -55,12 +56,11 @@
 	#define JON_MOD_SSSHADOWS_BIAS 1.0 //default 10.0 = 1.0m
 	#define JON_MOD_SSSHADOWS_MAX_THICKNESS 1000.0 //default 1000.0 = 100.0m shadows thicker than this from the camera are ignored, so as to things near ain't casting shadows on things far
 	//near
-	#define JON_MOD_SSSHADOWS_FADE_DISTANCE_NEAR 20.0 // 20.0m
-	#define JON_MOD_SSSHADOWS_MAX_THICKNESS_NEAR 0.1 //10.0cm
-	#define JON_MOD_SSSHADOWS_RAY_MAX_DISTANCE_NEAR 0.1 //default 10cm
-	#define JON_MOD_SSSHADOWS_BIAS_NEAR 0.025 //5.0cm
+	#define JON_MOD_SSSHADOWS_FADE_DISTANCE_NEAR 20.0 
+	#define JON_MOD_SSSHADOWS_RAY_MAX_DISTANCE_NEAR 0.20
+	#define JON_MOD_SSSHADOWS_BIAS_NEAR 0.05
+	#define JON_MOD_SSSHADOWS_MAX_THICKNESS_NEAR 0.20 
 	#define JON_MOD_SSSHADOWS_ATTENUATION_NEAR 0.0 //optional soft fade near shadows
-	#define JON_MOD_SSSHADOWS_DEPTH_MIP 0 //sadly doesn't work, so leave it at 0
 	//filtering
 	#define JON_MOD_SSSHADOWS_FILTER // filters with screenspace derivatives, might give very different result at different resolution
 //	#define JON_MOD_SSSHADOWS_DEBUG_MODE

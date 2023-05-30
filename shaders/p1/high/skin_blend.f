@@ -89,8 +89,7 @@ void main()
 		{
 			//poor mans view dependant subsurface scattering aproximation, brighter spots == less  absorption == more seethrough.
 			//we could improve with faint parallax
-			SubsurfaceBlur				*= 1.0 - exp(-dot(ColorBaseDiffuse.rgb, vec3(0.2126, 0.7152, 0.0722)) * SubsurfaceVal) * 2.0;
-
+			SubsurfaceBlur				*= (1.0 - exp(-dot(ColorBaseDiffuse.rgb, vec3(0.2126, 0.7152, 0.0722)) * SubsurfaceVal)) * 3.0;
 			ColorBaseDiffuse			= texture(S_diffuse_map, IO_uv0, SubsurfaceBlur).rgba*E.x + texture(S_diffuse2_map, IO_uv0, SubsurfaceBlur).rgba*E.y+ texture(S_diffuse3_map, IO_uv0, SubsurfaceBlur).rgba*E.z;
 			ColorBaseDiffuse.rgb		= ColorBaseDiffuse.rgb*(1.0 - U_age) + ColorBaseDiffuse.rgb*texture(S_diffuse4_map, IO_uv0, SubsurfaceBlur).rgb*U_age;		
 			ColorBaseDiffuse.rgb		= blendAlpha(ColorBaseDiffuse.rgb, mul(ColorBaseDiffuse.rgb, inCOLORMATRIX_BASE), ColorBaseDiffuse.a);
@@ -153,7 +152,7 @@ void main()
 
 
 #ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
-	ColorBaseDiffuse.rgb = bit_pack_albedo_normal(ColorBaseDiffuse.rgb, normalize(IO_normal), SubsurfaceVal);
+	ColorBaseDiffuse.rgb = bit_pack_albedo_normal(ColorBaseDiffuse.rgb, normalize(mix(Normal, IO_normal, SubsurfaceVal)), SubsurfaceVal);
 	GENERAL_OUTPUT_SUBSURFACE(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SubsurfaceVal, SmoothnessVal, ColorGlow);
 #else	
 	GENERAL_OUTPUT(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SmoothnessVal, ColorGlow);

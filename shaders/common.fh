@@ -1611,9 +1611,10 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 				#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
 					if(GetViewPos().x > 0.0)
 				#endif
-				ss_shadow = ScreenSpaceShadows(	world2view_rot(-ldirs[i]), 
-															vec2(fade_near, fade), 
-															ss_shadow_debug);
+				ss_shadow = ScreenSpaceShadows(	world2view_rot(-ldirs[i]),
+												dot(ldirs[i], wn),
+												vec2(fade_near, fade), 
+												ss_shadow_debug);
 			}
 			#ifdef JON_MOD_SSSHADOWS_FILTER
 				#if 1
@@ -1637,7 +1638,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 									cdiff, 
 									Roughness, 
 									L, 
-									wn, 
+									wv, 
 									wn, 
 									vec3(direct_occlusions[i].x, direct_occlusions[i].x, direct_occlusions[i].y), 
 									Subsurface, 
@@ -1700,7 +1701,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 			#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
 				if(GetViewPos().x > 0.0)
 				{
-					light_accum += combined_ambient_brdf(T_ibl_envmap, cspec, cdiff, wn, wv, ambRoughness, ambient_occlusion, ssr, Eamb);
+					light_accum += combined_ambient_brdf(T_ibl_envmap, cspec, cdiff, csub, wn, wnsub, wv, ambRoughness, RoughnessEpidermal, SubsurfaceMask, Subsurface, ambient_occlusion, ssr, Eamb);
 				}
 				else
 				{
@@ -1716,7 +1717,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 					light_accum += (spec_amb + diff_amb) * ambient_occlusion;			
 				}
 			#else
-				light_accum += combined_ambient_brdf(T_ibl_envmap, cspec, cdiff, wn, wv, ambRoughness, ambient_occlusion, ssr, Eamb);
+				light_accum += combined_ambient_brdf(T_ibl_envmap, cspec, cdiff, csub, wn, wnsub, wv, ambRoughness, RoughnessEpidermal, SubsurfaceMask, Subsurface, ambient_occlusion, ssr, Eamb);
 			#endif
 		#else
 			float a = ssr.a;

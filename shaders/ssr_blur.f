@@ -16,6 +16,7 @@ uint getflags(vec2 uv, int dir)
 
 void main()
 {
+	
 /*	{
 		uint flags = textureLod(T_flags, IO_uv0, 0).r;
 		// uint flags = texelFetch(T_flags, ivec2(gl_FragCoord.xy), 2).r;
@@ -31,6 +32,7 @@ void main()
 		OUT_Color = vec4(0);
 		return;
 	}
+//	vec2 uv = IO_uv0 * vec2(1.0, 0.5);
 	
 	//TODO @Timon great "optimization" (a.k.a. removing stupid) potential here...
 	TexelSize = /*g_BlurWidth*/1 / V_viewportpixelsize[BLUR_AXIS];
@@ -48,22 +50,7 @@ void main()
 	
 	if (hit >= 0.7) //apply contact hardening only on fairly certain hits
 	{
-		#ifdef JON_MOD_SSR_WIDER_ROUGH_SCATTER
-			#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
-				if(IO_uv0.x > 0.5)
-				{	
-			#endif
-			dist += (0.6 * roughness); // make sure it never goes overly smooth for rough surfaces
-			#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN	
-				}
-				else
-				{
-					dist += (0.3 * roughness);
-				}
-			#endif
-		#else
-			dist += (0.3 * roughness);
-		#endif
+		dist += (0.3 * roughness); // make sure it never goes overly smooth for rough surfaces
 		dist = saturate(dist);
 		roughness *= (dist);
 	}

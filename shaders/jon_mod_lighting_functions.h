@@ -3,12 +3,14 @@
 // as well as in the start of lighting_common.h
 
 #ifndef _JON_MOD_LIGHTING_FUNCTIONS_
+
 //L we have to trasnform to view space
 float ScreenSpaceShadows(	in vec3 light_ray, 
+							in float n_dot_l,
 							in vec2 cascade_blend, 
 							inout vec3 debug)	
 {
-	float step_size = 1.0 / float(JON_MOD_SSSHADOWS_MAX_STEPS);
+	const float step_size = 1.0 / JON_MOD_SSSHADOWS_MAX_STEPS;
 	
 	// Compute ray step
 	vec3 ray_step = light_ray * step_size * max(JON_MOD_SSSHADOWS_RAY_MAX_DISTANCE_NEAR, JON_MOD_SSSHADOWS_RAY_MAX_DISTANCE * cascade_blend.y);
@@ -20,9 +22,9 @@ float ScreenSpaceShadows(	in vec3 light_ray,
 
 	vec3 ray_pos = GetViewPos();
 	#if defined(AAMODE_SSAA_2X)	
-		float2 aspect = float2(0.5, -1.0 * V_viewportpixelsize.x / V_viewportpixelsize.y);
+		vec2 aspect = vec2(0.5, -1.0 * V_viewportpixelsize.x / V_viewportpixelsize.y);
 	#else
-		float2 aspect = float2(0.5, -0.5 * V_viewportpixelsize.x / V_viewportpixelsize.y);
+		vec2 aspect = vec2(0.5, -0.5 * V_viewportpixelsize.x / V_viewportpixelsize.y);
 	#endif
 	//different ways of getting what we need
 	//debug = fract(vec3(1.0 / vec2(GetDepth(GetFragUV()), GetDepth()), GetViewPos().z * 10.0));//why 10?
@@ -35,7 +37,7 @@ float ScreenSpaceShadows(	in vec3 light_ray,
 	float thickness_threshold = max(JON_MOD_SSSHADOWS_MAX_THICKNESS_NEAR, JON_MOD_SSSHADOWS_MAX_THICKNESS * ceil(cascade_blend.y));
 	float depth_bias = max(JON_MOD_SSSHADOWS_BIAS_NEAR * (1.0 + depth * 0.1), JON_MOD_SSSHADOWS_BIAS * ceil(cascade_blend.y));
 	float attenuation = ceil(cascade_blend.x) * step_size * JON_MOD_SSSHADOWS_ATTENUATION_NEAR;
-	
+	ray_pos += ray_step * 0.5;
 	for (uint i = 0; i < JON_MOD_SSSHADOWS_MAX_STEPS; i++)
 	{
 		// Step the ray
@@ -56,7 +58,7 @@ float ScreenSpaceShadows(	in vec3 light_ray,
 		if(depth_delta > 0.0 && depth_delta <  thickness_threshold)
 		{
 			// Fade out as we approach the edges of the screen
-			fade				= 1.0 - saturate(fade * 100.0 - 99.0);
+			fade				= 1.0 - saturate(fade * 30.0 - 29.0);
 			shadow				= min(fade.x, fade.y);
 			shadow				= 1 - attenuation * i;
 			break;
@@ -139,86 +141,138 @@ int max_spec_level_less_strict(samplerCube filtered_env_map)
 	return textureQueryLevels(filtered_env_map) - 3;//Egosoft, You had -2 in yours, that's 4x4 pixels. I would not recommend at least 8x8
 }
 
-vec3 combined_ambient_brdf(samplerCube filtered_env_map, vec3 cspec, vec3 cdiff, vec3 normal, vec3 view, float roughness, float ambient_occlusion, vec4 ssr, vec3 flat_diffuse_addition)
+vec3 combined_ambient_brdf(	samplerCube filtered_env_map, 
+							vec3 cspec, 
+							vec3 cdiff, 
+							vec3 csub, 
+							vec3 normal, 
+							vec3 normal_subdermal, 
+							vec3 view, 
+							float roughness, 
+							float roughness_epidermal, 
+							float subsurface_mask, 
+							float subsurface, 
+							float ambient_occlusion, 
+							vec4 ssr, 
+							vec3 flat_diffuse_addition)
 {
-	int lowest_mip = max_spec_level_less_strict(filtered_env_map);
-	float n_dot_v = dot(normal, view);
-	vec3 reflection = -(view - 2.0 * normal * n_dot_v);//view and normal are both normalized, so we don't need to too.
-	n_dot_v = max(0.0, n_dot_v);
-	//chan_diffuse is now baked into to T_preintegrated_GGX b channel
-	vec3 env_brdfs = textureLod(T_preintegrated_GGX, vec2(roughness, n_dot_v), 0).xyz;
-	
-	float roughness_sr = roughness * roughness;
-	#ifdef JON_MOD_USE_AMBIENT_SPECULAR_TRICKS
-		reflection = off_specular_peak(normal, reflection, roughness_sr);
+	#ifdef JON_MOD_DEBUG_DISABLE_AMBIENT_LIGHT
+		return vec3(0.0);
 	#endif
-	vec4 specular_ibl = textureLod(filtered_env_map, reflection, lowest_mip * sqrt(roughness));
-	#ifdef JON_MOD_DEBUG_WHITE_FURNACE_AMBIENT
-		specular_ibl.rgb = vec3(1.0);
-	#endif
+	#if 1
+		int lowest_mip = max_spec_level_less_strict(filtered_env_map);
+		float n_dot_v = dot(normal, view);
+		vec3 reflection = -(view - 2.0 * normal * n_dot_v);//view and normal are both normalized, so we don't need to too.
+		n_dot_v = saturate(n_dot_v);
+		//chan_diffuse is now baked into to T_preintegrated_GGX b channel
+		vec3 env_brdfs = textureLod(T_preintegrated_GGX, vec2(roughness, n_dot_v), 0).xyz;
+		
+//		mix(D, D_GGX(pow4(roughness_epidermal), n_dot_h), subsurface);
+		vec3 ambient_sss = vec3(0.0);
+		if(subsurface_mask > 0.0) //may or may not be faster, cubemaps are emulated on modern hardware mostly.
+			ambient_sss += (textureLod(filtered_env_map, -normal_subdermal, lowest_mip).rgb + flat_diffuse_addition) * sss_direct_approx(saturate(dot(view, normal_subdermal)), csub, cdiff) * ambient_occlusion;
+		
+		float roughness_sr = roughness * roughness;
+		#ifdef JON_MOD_USE_AMBIENT_SPECULAR_TRICKS
+			reflection = off_specular_peak(normal, reflection, roughness_sr);
+		#endif
+		vec4 specular_ibl = textureLod(filtered_env_map, reflection, lowest_mip * sqrt(roughness));
+		#ifdef JON_MOD_DEBUG_WHITE_FURNACE_AMBIENT
+			specular_ibl.rgb = vec3(1.0);
+		#endif
+		
+		//why was the SSR missing a PI in inensity to match!? Nah, seemed to intense
+		vec3 ambient_specular = mix(specular_ibl.rgb, ssr.rgb, ssr.a);
 	
-	//why was the SSR missing a PI in inensity to match!? Nah, seemed to intense
-	vec3 ambient_specular = mix(specular_ibl.rgb, ssr.rgb, ssr.a);
-
-	ambient_specular *= (cspec * env_brdfs.x + min(dot(LUM_ITU601, cspec) * 50.0, 1.0) * env_brdfs.y);
-	#ifdef JON_MOD_USE_AMBIENT_SPECULAR_TRICKS
-		ambient_specular *= get_specular_occlusion(n_dot_v, roughness_sr, ambient_occlusion);
+		ambient_specular *= (cspec * env_brdfs.x + min(dot(LUM_ITU601, cspec) * 50.0, 1.0) * env_brdfs.y);
+		#ifdef JON_MOD_USE_AMBIENT_SPECULAR_TRICKS
+			ambient_specular *= get_specular_occlusion(n_dot_v, roughness_sr, ambient_occlusion);
+		#else
+			ambient_specular *= ambient_occlusion;
+		#endif
+		
+		vec3 ambient_diffuse = textureLod(filtered_env_map, normal, lowest_mip).rgb + flat_diffuse_addition;
+		#ifdef JON_MOD_DEBUG_WHITE_FURNACE_AMBIENT
+			ambient_diffuse = vec3(1.0);
+		#endif
+		#ifdef JON_MOD_USE_AMBIENT_SPECULAR_TRICKS
+			ambient_diffuse *= (cdiff * muli_bounce_ambient_occlusion(cdiff, ambient_occlusion)) * env_brdfs.b;	
+		#else
+			ambient_diffuse *= ambient_occlusion;
+		#endif
+		
+	
+		return ambient_specular + ambient_diffuse + ambient_sss;
 	#else
-		ambient_specular *= ambient_occlusion;
+		return vec3(0.0);
 	#endif
-	
-	vec3 ambient_diffuse = textureLod(filtered_env_map, normal, lowest_mip).rgb + flat_diffuse_addition;
-	#ifdef JON_MOD_DEBUG_WHITE_FURNACE_AMBIENT
-		ambient_diffuse = vec3(1.0);
-	#endif
-	#ifdef JON_MOD_USE_AMBIENT_SPECULAR_TRICKS
-		ambient_diffuse *= (cdiff * muli_bounce_ambient_occlusion(cdiff, ambient_occlusion)) * env_brdfs.b;	
-	#else
-		ambient_diffuse *= ambient_occlusion;
-	#endif
-#ifdef JON_MOD_DEBUG_DISABLE_AMBIENT_LIGHT
-	return vec3(0.0);
-#endif	
-	return ambient_specular + ambient_diffuse;
 }
 
 //l_pass_envmap_probe.f version
-vec4 combined_ambient_probe_brdf(samplerCube filtered_env_map, vec3 cspec, vec3 cdiff, vec3 normal, vec3 view, vec3 reflection, float roughness, float ambient_occlusion, float ssr_alpha)
+vec4 combined_ambient_probe_brdf(	samplerCube filtered_env_map, 
+									vec3 cspec, 
+									vec3 cdiff, 
+									vec3 csub, 
+									vec3 normal, 
+									vec3 normal_subdermal, 
+									vec3 reflection, 
+									vec3 view, 
+									float roughness, 
+									float roughness_epidermal, 
+									float subsurface_mask, 
+									float subsurface, 
+									float ambient_occlusion, 
+									float ssr_mask)
 {
-	int lowest_mip = max_spec_level_less_strict(filtered_env_map);
-	float n_dot_v = dot(normal, view);
-
-	n_dot_v = max(0.0, n_dot_v);
-	//chan_diffuse is now baked into to T_preintegrated_GGX b channel
-	vec3 env_brdfs = textureLod(T_preintegrated_GGX, vec2(roughness, n_dot_v), 0).xyz;
+	#ifdef JON_MOD_DEBUG_DISABLE_AMBIENT_LIGHT
+		return vec3(0.0);
+	#endif		
+	#if 1
+		int lowest_mip = max_spec_level_less_strict(filtered_env_map);
+		float n_dot_v = saturate(dot(normal, view));
+		//chan_diffuse is now baked into to T_preintegrated_GGX b channel
+		vec3 env_brdfs = textureLod(T_preintegrated_GGX, vec2(roughness, n_dot_v), 0).xyz;
 	
-	float roughness_sr = roughness * roughness;
+		vec3 ambient_sss = vec3(0);
+		if(subsurface_mask > 0.0) //may or may not be faster, cubemaps are emulated on modern hardware mostly.
+			ambient_sss += (textureLod(filtered_env_map, -normal_subdermal, lowest_mip).rgb) * sss_direct_approx(saturate(dot(view, normal_subdermal)), csub, cdiff) * ambient_occlusion;
 		
-	#ifdef JON_MOD_USE_AMBIENT_SPECULAR_TRICKS_PROBE_VERSION
-		reflection = off_specular_peak(normal, reflection, roughness_sr);
-	#endif
-	vec4 ambient_specular = textureLod(filtered_env_map, reflection, lowest_mip * sqrt(roughness));
-
-	ambient_specular.rgb *= (1.0 - ssr_alpha);
-	ambient_specular.rgb *= (cspec * env_brdfs.x + min(dot(LUM_ITU601, cspec) * 50.0, 1.0) * env_brdfs.y);
+		float roughness_sr = roughness * roughness;
+		#ifdef JON_MOD_USE_AMBIENT_SPECULAR_TRICKS
+			reflection = off_specular_peak(normal, reflection, roughness_sr);
+		#endif
+		vec4 specular_ibl = textureLod(filtered_env_map, reflection, lowest_mip * sqrt(roughness));
+		#ifdef JON_MOD_DEBUG_WHITE_FURNACE_AMBIENT
+			specular_ibl.rgb = vec3(1.0);
+		#endif
+		
+		//why was the SSR missing a PI in inensity to match!? Nah, seemed to intense
+		vec3 ambient_specular = specular_ibl.rgb * ssr_mask;
 	
-	#ifdef JON_MOD_USE_AMBIENT_SPECULAR_TRICKS
-		ambient_specular.rgb *= get_specular_occlusion(n_dot_v, roughness_sr, ambient_occlusion);
+		ambient_specular *= (cspec * env_brdfs.x + min(dot(LUM_ITU601, cspec) * 50.0, 1.0) * env_brdfs.y);
+		
+		#ifdef JON_MOD_USE_AMBIENT_SPECULAR_TRICKS
+			ambient_specular *= get_specular_occlusion(n_dot_v, roughness_sr, ambient_occlusion);
+		#else
+			ambient_specular *= ambient_occlusion;
+		#endif
+		
+		vec3 ambient_diffuse = textureLod(filtered_env_map, normal, lowest_mip).rgb;
+		
+		#ifdef JON_MOD_DEBUG_WHITE_FURNACE_AMBIENT
+			ambient_diffuse = vec3(1.0);
+		#endif
+		
+		#ifdef JON_MOD_USE_AMBIENT_SPECULAR_TRICKS
+			ambient_diffuse *= (cdiff * muli_bounce_ambient_occlusion(cdiff, ambient_occlusion)) * env_brdfs.b;	
+		#else
+			ambient_diffuse *= ambient_occlusion;
+		#endif
+		
+		return vec4(ambient_specular + ambient_diffuse + ambient_sss, specular_ibl.a);
 	#else
-		ambient_specular.rgb *= ambient_occlusion;
+		return vec4(0.0);
 	#endif
-
-	vec3 ambient_diffuse = textureLod(filtered_env_map, normal, lowest_mip).rgb;
-	#ifdef JON_MOD_USE_AMBIENT_SPECULAR_TRICKS
-		ambient_diffuse *= (cdiff * muli_bounce_ambient_occlusion(cdiff, ambient_occlusion)) * env_brdfs.b;	
-	#else
-		ambient_diffuse *= ambient_occlusion;
-	#endif
-#ifdef JON_MOD_DEBUG_DISABLE_AMBIENT_LIGHT
-	return vec4(0.0);
-#endif	
-	return vec4(ambient_specular.rgb + ambient_diffuse, ambient_specular.a);
-
 }
 #define _JON_MOD_LIGHTING_FUNCTIONS_
 #endif

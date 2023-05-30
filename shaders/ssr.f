@@ -82,9 +82,15 @@ void main()
 {
 	OUT_Color = vec4(0);
 // 	OUT_Color.rgb = textureLod(T_maincolor_last, GetFragUV(), 0).rgb;	return;
-	
-	
-	vec2 pix_uv = GetFragUV();
+	vec2 pix_uv = GetFragUV() ;
+/*	
+	pix_uv *= vec2(1.0, 2.0);
+	if(uv.y > 1)
+	{
+		AA_OUT();
+		return;		
+	}
+*/	
 	vec2 pix_ss = uv2clip(pix_uv);
 	
 	vec2 vpsize = V_viewportpixelsize.xy * 2;	//we're rendering at half-res but we want the full-res to be tha basis
@@ -112,7 +118,7 @@ void main()
 			reproj /= reproj.w;
 			reproj.xy = clip2uv(reproj.xy);
 			vec2 dist = abs(reproj.xy - pix_uv);
-			TAA_mix = 0.1 + 0.7 * (smoothstep(0, 8.0 / V_viewportpixelsize.x, dist.x + dist.y));
+			TAA_mix = 0.1 + 0.7 * ( smoothstep(0, 8.0 / V_viewportpixelsize.x, dist.x + dist.y));
 		}
 		if (U_pass != 0) {
 			TAA_color = textureLod(S_input_rt, reproj.xy, 0);//TODO @Timon interpolated fetch effectively breaks distance info
@@ -157,7 +163,7 @@ void main()
 		constfade = smoothstep(-0.4, -0.2, ray.z);
 	}
 	float Roughness = smooth2rough(smoothness);
-	
+	float ambRoughness = 0;
 	float v_dot_n = saturate(dot(view_pos, normal));
 	// smaller cone at edges to highlight fresnel
 	#ifdef JON_MOD_DISABLE_EGOSOFT_SMOOTHER_GRAZING_ANGLE
@@ -200,23 +206,7 @@ void main()
 			pos *= vec2(2);
 			pos -= vec2(1);
 		}
-#ifdef JON_MOD_SSR_WIDER_ROUGH_SCATTER
-		float scale;
-		#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
-			if(pix_uv.x > 0.5)
-			{	
-		#endif
-		scale = 0.01f + 0.4f * (ambRoughness);
-		#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN	
-			}
-			else
-			{
-				scale = 0.01f + 0.2f * (ambRoughness);
-			}
-		#endif
-#else
 		float scale = 0.01f + 0.2f * (ambRoughness);
-#endif
 		scale *= 0.05f;
 		scale *= saturate(1.0f - TAA_mix);
 		view_pos.xy += pos * scale;

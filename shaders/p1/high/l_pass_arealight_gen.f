@@ -202,237 +202,242 @@ void main()
 		vec3 lightcolor = IO_lightcolor.rgb;
 	#endif
 	
-
-	vec3 view_pos; // needed
-	RetrieveZBufferViewPos(view_pos);
-
-	// light stuff
-	CONST vec3 tolight = IO_view_center - view_pos;
-	vec3 L = tolight; // L vector, gets modified
-	float distance = sqrt(dot(tolight,tolight));
-	float invDistance = 1.0 / distance;
-	// vec3 direction = tolight * invDistance; // light direction
-	// mainly readability
-	float lradius = IO_RadiusSizeXY.x;
-	vec2 lsize = IO_RadiusSizeXY.yz;
-
-	if (length(tolight) >  IO_RadiusSizeXY.x+ length(IO_RadiusSizeXY.yz) + IO_Range*2.0f)
-		discard;
+	OUT_Color = vec4(0);
+	#if 1
+		vec3 view_pos; // needed
+		RetrieveZBufferViewPos(view_pos);
 	
-	// attenuation
-	// plane RPM (just clamped) for diffuse + attenuation
-	float atten = 1.0f;
-	vec3 ldiff = tolight;
-	vec3 lraw = tolight; // from patch to closest point on ray/plane
-	if( lsize.x + lsize.y > 0.0 )
-	{
-		vec3 toSource = ldiff;
-		vec2 uv = vec2( dot(-toSource,IO_right), dot(-toSource,IO_up) );
-		uv = clamp( uv, -lsize.xy, lsize.xy );
-		toSource += uv.x*IO_right + uv.y*IO_up;
-		lraw = toSource;
-		// distance_atten = 1.0 / ( 1 + 0.01*dot(toSource, toSource));
-	}
-	ldiff = normalize(lraw);
-	float dstFromSurface = max(0.0f, length(lraw) - lradius);
-	float dstNorm = (IO_Range);// / 2.0;
-	float linattenA = saturate(1.0 - dstFromSurface/ dstNorm);
-
-	atten *= getPhysicalAtt(lraw) * linattenA;
+		// light stuff
+		CONST vec3 tolight = IO_view_center - view_pos;
+		vec3 L = tolight; // L vector, gets modified
+		float distance = sqrt(dot(tolight,tolight));
+		float invDistance = 1.0 / distance;
+		// vec3 direction = tolight * invDistance; // light direction
+		// mainly readability
+		float lradius = IO_RadiusSizeXY.x;
+		vec2 lsize = IO_RadiusSizeXY.yz;
 	
-	// spot attenuation, derived from single angle
-	float sp0 = saturate(IO_spotatten)*0.99;
-
-	float diratten = 1;
-	if(sp0 > 0)
-	{
-		diratten = 0.5*dot(-ldiff, IO_Direction)+0.5; // 0-1
-		diratten = (diratten-sp0)/(1-sp0); // remap
-		diratten = saturate(diratten);
-		diratten *= diratten;
-	}
-	atten *= diratten;
-
-	
-	#ifdef JON_MOD_USE_DISCARD_AREALIGHT_MORE
-		if(atten < 0)
-		{
+		if (length(tolight) >  IO_RadiusSizeXY.x+ length(IO_RadiusSizeXY.yz) + IO_Range*2.0f)
 			discard;
-		}
-	#endif
-
-	float sizeMin = min(lsize.x, lsize.y);
-	float sizeMax = max(lsize.x, lsize.y);
-	float sizeSum = lsize.x + lsize.y;
-	CONST float threshold = 0.001f;
-
-	// accumulation
-	float diffuse_occlusion = 1.0f;
-	vec4 finalColor = vec4(0);
-	
-	vec3 Normal;
-	RI_GBUFFER_NORMAL0(Normal);
-	
-	float Metalness;
-	float Smoothness;
-	RI_GBUFFER_METAL_SMOOTH(Metalness, Smoothness);
-	
-	float diffndotl = saturate(dot(Normal, ldiff));
 		
-	float SubsurfaceMask = 0;
-	#ifdef JON_MOD_USE_DISCARD_AREALIGHT_MORE
-		#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING	
-			SubsurfaceMask = max(0.0, ceil(0.5 - Metalness));
-			if (diffndotl + SubsurfaceMask <= 0.0)
-		#else
-			if (diffndotl <= 0.0)
-		#endif
+		// attenuation
+		// plane RPM (just clamped) for diffuse + attenuation
+		float atten = 1.0f;
+		vec3 ldiff = tolight;
+		vec3 lraw = tolight; // from patch to closest point on ray/plane
+		if( lsize.x + lsize.y > 0.0 )
 		{
-		//	LPASS_SHAPE_EARLY_DISCARD()
-			discard;
+			vec3 toSource = ldiff;
+			vec2 uv = vec2( dot(-toSource,IO_right), dot(-toSource,IO_up) );
+			uv = clamp( uv, -lsize.xy, lsize.xy );
+			toSource += uv.x*IO_right + uv.y*IO_up;
+			lraw = toSource;
+			// distance_atten = 1.0 / ( 1 + 0.01*dot(toSource, toSource));
 		}
-	#endif
+		ldiff = normalize(lraw);
+		float dstFromSurface = max(0.0f, length(lraw) - lradius);
+		float dstNorm = (IO_Range);// / 2.0;
+		float linattenA = saturate(1.0 - dstFromSurface/ dstNorm);
 	
-	#ifndef JON_MOD_USE_DISCARD_AREALIGHT_MORE
-		if(atten > 0)
-		{
-	#endif
-
-	vec3 Albedo;
-	RI_GBUFFER_BASECOLOR(Albedo);
-	
-	float Roughness = smooth2rough(Smoothness);//was Smoothness*Smoothness - changed for consistency
-	#ifndef JON_MOD_ROUGHNESS_REMAP
-		Roughness = max(Roughness, 0.05f); // avoid nans after squared divisions
-	#endif	
-
-	vec3 cspec = vec3(0);
-	vec3 cdiff = vec3(0);
-	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
-		vec3 csub = vec3(0);
-		vec3 SubsurfaceNormal = Normal;
-		float Subsurface = 0;
-		float RoughnessEpidermal = 0.5;
-		get_colors(	Albedo, 
-					Metalness, 
-					Roughness, 
-					cspec, 
-					cdiff, 
-					csub, 
-					SubsurfaceNormal,
-					Subsurface, 
-					RoughnessEpidermal, 
-					SubsurfaceMask);
-	#else
+		atten *= getPhysicalAtt(lraw) * linattenA;
 		
-		get_colors(Albedo, Metalness, cspec, cdiff);
-	#endif
-
-	// float a = max(Roughness*Roughness, 0.0001f);
-	float a = Roughness*Roughness;
-	float a2 = a*a;
-	float norm = 1.0 / (PI * a2); // factor used for spec mod
-
-	// AO used to attenuate diffuse component
+		// spot attenuation, derived from single angle
+		float sp0 = saturate(IO_spotatten)*0.99;
 	
-	if (B_ssao_enabled) {
-		float ambient_occlusion = GetSSAO();
-		// weight strength over distance
-		float ssao_weight = 0.5*(linattenA*linattenA);
-		diffuse_occlusion = saturate(ambient_occlusion);
-	}
-	else /**/{//TODO @Timon without this the attenuation breaks with vulkan nvidia-381.22 geforce 650ti on linux
-		//looks like either glslang or nvidia-driver bug, or I'm not aware of some detail of the spec
-		diffuse_occlusion = 1.0f;
-	}
-
-	vec3 v = normalize(-view_pos);
+		float diratten = 1;
+		if(sp0 > 0)
+		{
+			diratten = 0.5*dot(-ldiff, IO_Direction)+0.5; // 0-1
+			diratten = (diratten-sp0)/(1-sp0); // remap
+			diratten = saturate(diratten);
+			diratten *= diratten;
+		}
+		atten *= diratten;
 	
-	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
-		float n_dot_l_sss = sss_wrap_dot(ldiff, SubsurfaceNormal, Subsurface); //since we can't shadow we approximate with this instead
-		//finalColor.rgb += saturate(dot(Normal, ldiff)) * diffuse_occlusion * INVPI * lightcolor;
-		vec3 h = normalize(ldiff + v);
-		finalColor.rgb += (cdiff * lightcolor) * (chan_diff(a2, dot(v, Normal), diffndotl, saturate(dot(v, h)), saturate(dot(Normal, h)), 1.0, cspec) * diffuse_occlusion * diffndotl);
-		finalColor.rgb += sss_direct_approx(abs(dot(ldiff, SubsurfaceNormal)), csub, cdiff) * n_dot_l_sss;
-	#else	
-		// diffuse contribution
-		vec3 Idiff = lightcolor * diffndotl * diffuse_occlusion;
-		finalColor.rgb += Idiff * cdiff/PI ;
-	#endif
-	
-	vec3 dir = reflect(-v, Normal);
-#define USE_TUBELIGHTMATH
-	#ifdef USE_TUBELIGHTMATH
-		if (sizeMin > threshold) {
-			 L = planeRPM(dir, L);
-			// L = planeRPMb(dir, L);
-		}
-		else if (sizeMax > threshold) {
-			 L = tubeRPM(dir, L);
-		}
-	#else
-		if (sizeSum > threshold) {
-			L = planeRPM(dir, L);
-		}
-	#endif
-		if (lradius > 0.0) {
-			L = sphereRPM(dir, L, lradius);
-		}
-
-		// energy convservation using spec D mod
-		float sizeGuess = lsize.x + lsize.y + lradius;
-		float solidAngleGuess = saturate(sizeGuess * invDistance);
-		float specatten = 1.0 / (1.0 + norm * solidAngleGuess);
-		vec3 Lnorm = normalize(L);
-
-		// wrt to plane RPM
-		float n_dot_l = saturate(dot(Lnorm, Normal));
-
-		// horizon mod
-		float horizon = 1.0 - n_dot_l;
-		horizon *= horizon;
-		horizon *= horizon;
-		specatten = specatten - specatten * horizon;
-
-		#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
-			finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec3(0.0, specatten * n_dot_l * IO_SpecIntensity, 0.0), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
-		#else
-			// specular contribution
-			// vec3 Ispec = IO_SpecIntensity * IO_Intensity * IO_lightcolor.rgb * specatten * diffndotl;
-			vec3 Ispec = IO_SpecIntensity * lightcolor * specatten * n_dot_l;
-			finalColor.rgb += Ispec * EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec2(0,1));
-		#endif
-//		finalColor.rgb = IO_SpecIntensity * lightcolor * n_dot_l * EvalBRDFSimpleSpec(cspec, Roughness, Lnorm, v, Normal);
-	// finalColor.rgb = vec3(n_dot_l);
-	#ifndef JON_MOD_USE_DISCARD_AREALIGHT_MORE	
-		}
-	#endif
-	finalColor.rgb *= atten;
-
-/*	if (B_render_arealightshape) {
-		// draw influence outline
-		if(abs(linattenA - 0.01) < 0.01 || abs(sqrt(diratten) - 0.01) < 0.01)
-			finalColor.rgb = IO_lightcolor.rgb;
-		if(linattenA < 0.01 || sqrt(diratten) < 0.01) {
-				finalColor.rgb = vec3(0,1,0);
-			if(sizeMin > threshold) { // its a plane
-				finalColor.rgb = vec3(1,0,0);
-			} 
-			else if (sizeMax > threshold) { // a tube
-				finalColor.rgb = vec3(1,1,0);
+		
+		#ifdef JON_MOD_USE_DISCARD_AREALIGHT_MORE
+			if(atten < 0)
+			{
+				discard;
 			}
+		#endif
+	
+		float sizeMin = min(lsize.x, lsize.y);
+		float sizeMax = max(lsize.x, lsize.y);
+		float sizeSum = lsize.x + lsize.y;
+		CONST float threshold = 0.001f;
+	
+		// accumulation
+		float diffuse_occlusion = 1.0f;
+		vec4 finalColor = vec4(0);
+		
+		vec3 Normal;
+		RI_GBUFFER_NORMAL0(Normal);
+		
+		float Metalness;
+		float Smoothness;
+		RI_GBUFFER_METAL_SMOOTH(Metalness, Smoothness);
+		
+		float diffndotl = saturate(dot(Normal, ldiff));
+			
+		float SubsurfaceMask = 0;
+		#ifdef JON_MOD_USE_DISCARD_AREALIGHT_MORE
+			#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING	
+				SubsurfaceMask = max(0.0, ceil(0.5 - Metalness));
+				if (diffndotl + SubsurfaceMask <= 0.0)
+			#else
+				if (diffndotl <= 0.0)
+			#endif
+			{
+			//	LPASS_SHAPE_EARLY_DISCARD()
+				discard;
+			}
+		#endif
+		
+		#ifndef JON_MOD_USE_DISCARD_AREALIGHT_MORE
+			if(atten > 0)
+			{
+		#endif
+	
+		vec3 Albedo;
+		RI_GBUFFER_BASECOLOR(Albedo);
+		
+		float Roughness = smooth2rough(Smoothness);//was Smoothness*Smoothness - changed for consistency
+		#ifndef JON_MOD_ROUGHNESS_REMAP
+			Roughness = max(Roughness, 0.05f); // avoid nans after squared divisions
+		#endif	
+	
+		vec3 cspec = vec3(0);
+		vec3 cdiff = vec3(0);
+		#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+			vec3 csub = vec3(0);
+			vec3 SubsurfaceNormal = Normal;
+			float Subsurface = 0;
+			float RoughnessEpidermal = 0.5;
+			get_colors(	Albedo, 
+						Metalness, 
+						Roughness, 
+						cspec, 
+						cdiff, 
+						csub, 
+						SubsurfaceNormal,
+						Subsurface, 
+						RoughnessEpidermal, 
+						SubsurfaceMask);
+		#else
+			
+			get_colors(Albedo, Metalness, cspec, cdiff);
+		#endif
+	
+		// float a = max(Roughness*Roughness, 0.0001f);
+		float a = Roughness*Roughness;
+		float a2 = a*a;
+		float norm = 1.0 / (PI * a2); // factor used for spec mod
+	
+		// AO used to attenuate diffuse component
+		
+		if (B_ssao_enabled) {
+			float ambient_occlusion = GetSSAO();
+			// weight strength over distance
+			float ssao_weight = 0.5*(linattenA*linattenA);
+			diffuse_occlusion = saturate(ambient_occlusion);
 		}
-	}*/
-
-	finalColor.rgb = clamp(finalColor.rgb, 0, 10); // safety
-	finalColor.rgb = clamp(finalColor.rgb, 0, 2); // reduce flares
-	finalColor.rgb *= diffuse_occlusion;
+		else /**/{//TODO @Timon without this the attenuation breaks with vulkan nvidia-381.22 geforce 650ti on linux
+			//looks like either glslang or nvidia-driver bug, or I'm not aware of some detail of the spec
+			diffuse_occlusion = 1.0f;
+		}
 	
-	OUT_Color.rgb = finalColor.rgb;
-	OUT_Color.a = 0;
+		vec3 v = normalize(-view_pos);
+		
+		#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+			float n_dot_l_sss = sss_wrap_dot(ldiff, SubsurfaceNormal, Subsurface); //since we can't shadow we approximate with this instead
+			//finalColor.rgb += saturate(dot(Normal, ldiff)) * diffuse_occlusion * INVPI * lightcolor;
+			vec3 h = normalize(ldiff + v);
+			finalColor.rgb += (cdiff * lightcolor) * (chan_diff(a2, dot(v, Normal), diffndotl, saturate(dot(v, h)), saturate(dot(Normal, h)), 1.0, cspec) * diffuse_occlusion * diffndotl);
+			finalColor.rgb += sss_direct_approx(abs(dot(ldiff, SubsurfaceNormal)), csub, cdiff) * n_dot_l_sss;
+		#else	
+			// diffuse contribution
+			vec3 Idiff = lightcolor * diffndotl * diffuse_occlusion;
+			finalColor.rgb += Idiff * cdiff/PI ;
+		#endif
+		
+		vec3 dir = reflect(-v, Normal);
+	#define USE_TUBELIGHTMATH
+		#ifdef USE_TUBELIGHTMATH
+			if (sizeMin > threshold) {
+				L = planeRPM(dir, L);
+				// L = planeRPMb(dir, L);
+			}
+			else if (sizeMax > threshold) {
+				L = tubeRPM(dir, L);
+			}
+		#else
+			if (sizeSum > threshold) {
+				L = planeRPM(dir, L);
+			}
+		#endif
+			if (lradius > 0.0) {
+				L = sphereRPM(dir, L, lradius);
+			}
 	
-#ifdef LPASS_COUNT
-	OUT_Color *= FLOAT_SMALL_NUMBER;
-	OUT_Color.rgb += 1.0f / LPASS_COUNT;
-#endif
+			// energy convservation using spec D mod
+			float sizeGuess = lsize.x + lsize.y + lradius;
+			float solidAngleGuess = saturate(sizeGuess * invDistance);
+			float specatten = 1.0 / (1.0 + norm * solidAngleGuess);
+			vec3 Lnorm = normalize(L);
+	
+			// wrt to plane RPM
+			float n_dot_l = saturate(dot(Lnorm, Normal));
+	
+			// horizon mod
+			float horizon = 1.0 - n_dot_l;
+			horizon *= horizon;
+			horizon *= horizon;
+			specatten = specatten - specatten * horizon;
+	
+			#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+				finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec3(0.0, specatten * n_dot_l * IO_SpecIntensity, 0.0), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
+			#else
+				// specular contribution
+				// vec3 Ispec = IO_SpecIntensity * IO_Intensity * IO_lightcolor.rgb * specatten * diffndotl;
+				vec3 Ispec = IO_SpecIntensity * lightcolor * specatten * n_dot_l;
+				finalColor.rgb += Ispec * EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec2(0,1));
+			#endif
+	//		finalColor.rgb = IO_SpecIntensity * lightcolor * n_dot_l * EvalBRDFSimpleSpec(cspec, Roughness, Lnorm, v, Normal);
+		// finalColor.rgb = vec3(n_dot_l);
+		#ifndef JON_MOD_USE_DISCARD_AREALIGHT_MORE	
+			}
+		#endif
+		finalColor.rgb *= atten;
+	
+	/*	if (B_render_arealightshape) {
+			// draw influence outline
+			if(abs(linattenA - 0.01) < 0.01 || abs(sqrt(diratten) - 0.01) < 0.01)
+				finalColor.rgb = IO_lightcolor.rgb;
+			if(linattenA < 0.01 || sqrt(diratten) < 0.01) {
+					finalColor.rgb = vec3(0,1,0);
+				if(sizeMin > threshold) { // its a plane
+					finalColor.rgb = vec3(1,0,0);
+				} 
+				else if (sizeMax > threshold) { // a tube
+					finalColor.rgb = vec3(1,1,0);
+				}
+			}
+		}*/
+	
+		finalColor.rgb = clamp(finalColor.rgb, 0, 10); // safety
+		finalColor.rgb = clamp(finalColor.rgb, 0, 2); // reduce flares
+		finalColor.rgb *= diffuse_occlusion;
+		
+		OUT_Color.rgb = finalColor.rgb;
+		OUT_Color.a = 0;
+		
+		#ifdef LPASS_COUNT
+			OUT_Color *= FLOAT_SMALL_NUMBER;
+			OUT_Color.rgb += 1.0f / LPASS_COUNT;
+		#endif
+	#else
+		OUT_Color.rgb = vec3(10.0, 5.0, 0.0);
+		OUT_Color.a = 1.0;	
+	#endif
 }

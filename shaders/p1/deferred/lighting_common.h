@@ -154,7 +154,7 @@ vec3 EvalBRDF(	in vec3 cspec,
 #ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	D = mix(D, D_GGX(pow4(roughness_epidermal), n_dot_h), subsurface);
 	roughness = mix(roughness, roughness_epidermal, subsurface);
-	csub = sss_direct_approx(abs(dot(l, nsub)), csub, cdiff);
+	csub = sss_direct_approx(abs(dot(l, nsub)), csub, cdiff) * D_GGX(0.36, saturate(dot(v, l)));
 #endif	
 	float a = pow2(roughness);
 	float a2 = pow2(a);
@@ -173,7 +173,8 @@ vec3 EvalBRDF(	in vec3 cspec,
 	{
 		V = V_Smith(a, n_dot_v, n_dot_l);
 	}
-	return csub * mask.z + cdiff * mask.x + (D * V * mask.y * saturate(n_dot_v_raw * 1000.0)) * F;
+	float specular_aliasing_kill = saturate(n_dot_v_raw * 200.0 + 1);//the normals can point around the horizon, which makes a mess with the specular!
+	return csub * mask.z + cdiff * mask.x + (D * V * mask.y * specular_aliasing_kill) * F;
 }
 //overloads
 vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n)
