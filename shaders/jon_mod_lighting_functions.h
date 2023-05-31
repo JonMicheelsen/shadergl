@@ -17,6 +17,7 @@ float ScreenSpaceShadows(	in vec3 light_ray,
 	
 	// Ray march towards the light
 	float shadow = 0.0;
+//	float subsurface_shadow = 0.0;
 	vec2 ray_uv = vec2(0.0);
 	vec2 fade = vec2(0.0);
 
@@ -36,7 +37,7 @@ float ScreenSpaceShadows(	in vec3 light_ray,
 	vec2 texel_size = (1.0 / V_viewportpixelsize.xy);
 	float thickness_threshold = max(JON_MOD_SSSHADOWS_MAX_THICKNESS_NEAR, JON_MOD_SSSHADOWS_MAX_THICKNESS * ceil(cascade_blend.y));
 	float depth_bias = max(JON_MOD_SSSHADOWS_BIAS_NEAR * (1.0 + depth * 0.1), JON_MOD_SSSHADOWS_BIAS * ceil(cascade_blend.y));
-	float attenuation = ceil(cascade_blend.x) * step_size * JON_MOD_SSSHADOWS_ATTENUATION_NEAR;
+//	float attenuation = ceil(cascade_blend.x) * step_size * JON_MOD_SSSHADOWS_ATTENUATION_NEAR;
 	ray_pos += ray_step * 0.5;
 	for (uint i = 0; i < JON_MOD_SSSHADOWS_MAX_STEPS; i++)
 	{
@@ -60,7 +61,7 @@ float ScreenSpaceShadows(	in vec3 light_ray,
 			// Fade out as we approach the edges of the screen
 			fade				= 1.0 - saturate(fade * 30.0 - 29.0);
 			shadow				= min(fade.x, fade.y);
-			shadow				= 1 - attenuation * i;
+//			subsurface_shadow	= -shadow * i * JON_MOD_SSSHADOWS_ATTENUATION_NEAR;
 			break;
 		}
 
@@ -109,12 +110,18 @@ float chan_diff(float a2, float n_dot_v, float n_dot_l, float v_dot_h, float n_d
 }
 float sss_wrap_dot(vec3 l, vec3 n, float subsurface)
 {
-	return max(0.0, (dot(l, n) - JON_MOD_SUBSURFACE_WRAP_SCALE * subsurface) * (1.0 / (1.0 - JON_MOD_SUBSURFACE_WRAP_SCALE * subsurface)));
+	//return max(0.0, (dot(l, n) - JON_MOD_SUBSURFACE_WRAP_SCALE * subsurface) * (1.0 / (1.0 - JON_MOD_SUBSURFACE_WRAP_SCALE * subsurface)));
+	
+	float wrap = 0.5;
+	return saturate((-dot(l, n) + wrap) / pow2( 1 + wrap ));
 }
 
 vec3 sss_direct_approx(float n_dot_l_abs, vec3 subsurface_scatter_radius, vec3 surface_color)
 {
-	return max(vec3(0.0), exp(-3.0 * n_dot_l_abs / (subsurface_scatter_radius + 0.001)) * subsurface_scatter_radius * surface_color) * 0.2;
+	#ifdef JON_MOD_SUBSURFACE_SQUARED_NDX
+		n_dot_l_abs = pow2(n_dot_l_abs);
+	#endif
+	return exp(-3.0 * n_dot_l_abs / (subsurface_scatter_radius + 0.001)) * surface_color * subsurface_scatter_radius * INVPI;// * 0.2;
 }
 
 // https://iryoku.com/downloads/Practical-Realtime-Strategies-for-Accurate-Indirect-Occlusion.pdf
@@ -167,18 +174,24 @@ vec3 combined_ambient_brdf(	samplerCube filtered_env_map,
 		//chan_diffuse is now baked into to T_preintegrated_GGX b channel
 		vec3 env_brdfs = textureLod(T_preintegrated_GGX, vec2(roughness, n_dot_v), 0).xyz;
 		
+		if(subsurface_mask > 0.0)
+			env_brdfs = mix(env_brdfs, textureLod(T_preintegrated_GGX, vec2(roughness_epidermal, saturate(dot(view, normal_subdermal))), 0).xyz, subsurface);
+		
 //		mix(D, D_GGX(pow4(roughness_epidermal), n_dot_h), subsurface);
 		vec3 ambient_sss = vec3(0.0);
 		if(subsurface_mask > 0.0) //may or may not be faster, cubemaps are emulated on modern hardware mostly.
-			ambient_sss += (textureLod(filtered_env_map, -normal_subdermal, lowest_mip).rgb + flat_diffuse_addition) * sss_direct_approx(saturate(dot(view, normal_subdermal)), csub, cdiff) * ambient_occlusion;
+			ambient_sss += (textureLod(filtered_env_map, -normal_subdermal, lowest_mip).rgb + flat_diffuse_addition) * sss_direct_approx(saturate(dot(view, normal_subdermal)), csub, cdiff);
 		
 		float roughness_sr = roughness * roughness;
 		#ifdef JON_MOD_USE_AMBIENT_SPECULAR_TRICKS
 			reflection = off_specular_peak(normal, reflection, roughness_sr);
 		#endif
-		vec4 specular_ibl = textureLod(filtered_env_map, reflection, lowest_mip * sqrt(roughness));
+		vec3 specular_ibl = textureLod(filtered_env_map, reflection, lowest_mip * sqrt(roughness)).rgb;
+		if(subsurface_mask > 0.0) //may or may not be faster, cubemaps are emulated on modern hardware mostly.
+			specular_ibl = mix(specular_ibl, textureLod(filtered_env_map, reflection, lowest_mip * sqrt(roughness_epidermal)).rgb, subsurface);
+			
 		#ifdef JON_MOD_DEBUG_WHITE_FURNACE_AMBIENT
-			specular_ibl.rgb = vec3(1.0);
+			specular_ibl = vec3(1.0);
 		#endif
 		
 		//why was the SSR missing a PI in inensity to match!? Nah, seemed to intense
@@ -200,9 +213,10 @@ vec3 combined_ambient_brdf(	samplerCube filtered_env_map,
 		#else
 			ambient_diffuse *= ambient_occlusion;
 		#endif
-		
-	
-		return ambient_specular + ambient_diffuse + ambient_sss;
+
+		return 	vec3(	ambient_diffuse * 	JON_MOD_GLOBAL_DIFFUSE_INTENSITY + 
+						ambient_specular * 	JON_MOD_GLOBAL_SPECULAR_INTENSITY + 
+						ambient_sss * 		JON_MOD_GLOBAL_SUBSURFACE_INTENSITY);
 	#else
 		return vec3(0.0);
 	#endif
@@ -232,7 +246,10 @@ vec4 combined_ambient_probe_brdf(	samplerCube filtered_env_map,
 		float n_dot_v = saturate(dot(normal, view));
 		//chan_diffuse is now baked into to T_preintegrated_GGX b channel
 		vec3 env_brdfs = textureLod(T_preintegrated_GGX, vec2(roughness, n_dot_v), 0).xyz;
-	
+		
+		if(subsurface_mask > 0.0)
+			env_brdfs = mix(env_brdfs, textureLod(T_preintegrated_GGX, vec2(roughness_epidermal, saturate(dot(view, normal_subdermal))), 0).xyz, subsurface);
+
 		vec3 ambient_sss = vec3(0);
 		if(subsurface_mask > 0.0) //may or may not be faster, cubemaps are emulated on modern hardware mostly.
 			ambient_sss += (textureLod(filtered_env_map, -normal_subdermal, lowest_mip).rgb) * sss_direct_approx(saturate(dot(view, normal_subdermal)), csub, cdiff) * ambient_occlusion;
@@ -242,6 +259,9 @@ vec4 combined_ambient_probe_brdf(	samplerCube filtered_env_map,
 			reflection = off_specular_peak(normal, reflection, roughness_sr);
 		#endif
 		vec4 specular_ibl = textureLod(filtered_env_map, reflection, lowest_mip * sqrt(roughness));
+		if(subsurface_mask > 0.0) //may or may not be faster, cubemaps are emulated on modern hardware mostly.
+			specular_ibl = mix(specular_ibl, textureLod(filtered_env_map, reflection, lowest_mip * sqrt(roughness_epidermal)), subsurface);
+
 		#ifdef JON_MOD_DEBUG_WHITE_FURNACE_AMBIENT
 			specular_ibl.rgb = vec3(1.0);
 		#endif
@@ -250,7 +270,7 @@ vec4 combined_ambient_probe_brdf(	samplerCube filtered_env_map,
 		vec3 ambient_specular = specular_ibl.rgb * ssr_mask;
 	
 		ambient_specular *= (cspec * env_brdfs.x + min(dot(LUM_ITU601, cspec) * 50.0, 1.0) * env_brdfs.y);
-		
+
 		#ifdef JON_MOD_USE_AMBIENT_SPECULAR_TRICKS
 			ambient_specular *= get_specular_occlusion(n_dot_v, roughness_sr, ambient_occlusion);
 		#else
@@ -269,7 +289,10 @@ vec4 combined_ambient_probe_brdf(	samplerCube filtered_env_map,
 			ambient_diffuse *= ambient_occlusion;
 		#endif
 		
-		return vec4(ambient_specular + ambient_diffuse + ambient_sss, specular_ibl.a);
+		return vec4(ambient_diffuse * 	JON_MOD_GLOBAL_DIFFUSE_INTENSITY + 
+					ambient_specular * 	JON_MOD_GLOBAL_SPECULAR_INTENSITY + 
+					ambient_sss * 		JON_MOD_GLOBAL_SUBSURFACE_INTENSITY, 
+					specular_ibl.a);
 	#else
 		return vec4(0.0);
 	#endif

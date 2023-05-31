@@ -154,7 +154,7 @@ vec3 EvalBRDF(	in vec3 cspec,
 #ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	D = mix(D, D_GGX(pow4(roughness_epidermal), n_dot_h), subsurface);
 	roughness = mix(roughness, roughness_epidermal, subsurface);
-	csub = sss_direct_approx(abs(dot(l, nsub)), csub, cdiff) * D_GGX(0.36, saturate(dot(v, l)));
+	csub = sss_direct_approx(abs(dot(l, nsub)), csub, cdiff);
 #endif	
 	float a = pow2(roughness);
 	float a2 = pow2(a);
@@ -172,9 +172,12 @@ vec3 EvalBRDF(	in vec3 cspec,
 	if(fullV)
 	{
 		V = V_Smith(a, n_dot_v, n_dot_l);
+		csub *= D_GGX(0.36, saturate(dot(v, -l)));//chances are high we only want directional intensity to subsurface scattering if we also want geometric attenuation
 	}
 	float specular_aliasing_kill = saturate(n_dot_v_raw * 200.0 + 1);//the normals can point around the horizon, which makes a mess with the specular!
-	return csub * mask.z + cdiff * mask.x + (D * V * mask.y * specular_aliasing_kill) * F;
+	mask *= vec3(JON_MOD_GLOBAL_DIFFUSE_INTENSITY, JON_MOD_GLOBAL_SPECULAR_INTENSITY, JON_MOD_GLOBAL_SUBSURFACE_INTENSITY);
+	
+	return cdiff * mask.x + (D * V * mask.y * specular_aliasing_kill) * F + csub * mask.z;
 }
 //overloads
 vec3 EvalBRDF(in vec3 cspec, in vec3 cdiff, in float roughness, in vec3 l, in vec3 v, in vec3 n)

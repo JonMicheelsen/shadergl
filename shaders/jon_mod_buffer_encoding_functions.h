@@ -90,21 +90,24 @@ void get_subdermal_roughness(	inout vec3 cspec,
 //buffers is 16161616, game's "decals" never blends on subsurface surfaces, we should be safe :P
 vec3 bit_pack_albedo_normal(in vec3 albedo, in vec3 normal, in float subsurface)
 {
-	float scale = 254.0;
-	float scale_bit_pack = 1.0 / scale;
+	const float scale = 128.0;
+	const float scale_bit_pack = 1.0 / scale;
 	
 	//assumes the normal to be normalized!
-	return subsurface > 0.0 ? (floor(albedo * 254) + (normal * 0.5 + 0.5) * (1.0 - scale_bit_pack)) * scale_bit_pack : albedo;
+	return subsurface > 0.0 ? (floor(albedo * scale) + (normal * 0.5 + 0.5) * (1.0 - scale_bit_pack)) * scale_bit_pack : albedo;
 }
 void bit_unpack_albedo_normal(inout vec3 albedo, inout vec3 subsurface_normal, in float subsurface_mask)
 {
-	float scale = 254.0;
-	float scale_bit_pack = 1.0 / scale;
-	float scale_normal = 1.0 / (1.0 - scale_bit_pack);
+	const float scale = 128.0;
+	const float scale_bit_pack = 1.0 / scale;
+	const float scale_normal = 1.0 / (1.0 - scale_bit_pack);
 
 	//assumes subsurface_normal is passed in defined as the regular normal, to avoid NaN's, if it was 0!
-	subsurface_normal = normalize(mix(((albedo * scale - floor(albedo * scale)) * scale_normal) * 2.0 - 1.0, subsurface_normal, subsurface_mask));
-	albedo = subsurface_mask > 0.0 ? floor(albedo * scale) * scale_bit_pack : albedo;
+	if(subsurface_mask > 0)
+	{
+		subsurface_normal = normalize(((albedo * scale - floor(albedo * scale)) * scale_normal) * 2.0 - 1.0);
+		albedo = floor(albedo * scale) * scale_bit_pack;
+	}
 }
 
 void get_colors(in vec3 albedo, 
@@ -114,17 +117,18 @@ void get_colors(in vec3 albedo,
 				out vec3 cdiff, 
 				out vec3 csub,
 				inout vec3 nsub,
-				out float subsurface, 
-				out float roughness_epidermal, 
-				out float subsurface_mask)
+				inout float subsurface, 
+				inout float roughness_epidermal, 
+				inout float subsurface_mask)
 {
 	UnpackMetalSubsurface(metalness, subsurface);
-	subsurface_mask = ceil(max(0.0, subsurface - 0.001));
-	bit_unpack_albedo_normal(albedo, nsub, subsurface_mask * subsurface);
+	subsurface_mask = min(1.0, ceil(max(0.0, subsurface - 0.001)));
+	bit_unpack_albedo_normal(albedo, nsub, subsurface_mask);
 	#ifdef JON_MOD_DEBUG_GREY_WORLD
 		albedo = vec3(0.5);
 	#endif
-    cdiff = albedo * (1.0 - metalness);
+    //subsurface *= 1.0;
+	cdiff = albedo * (1.0 - metalness);
 	csub = JON_MOD_SUBSURFACE_SCATTER_RADIUS_HUMAN * subsurface;//TODO we could bitpack different things?
 //	cdiff *= (1.0 - subsurface * subsurface_mask);
     cspec = mix(vec3(mix(0.04, JON_MOD_SUBSURFACE_EPIDERMAL_F0, subsurface_mask)), albedo, metalness);

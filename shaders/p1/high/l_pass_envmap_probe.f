@@ -97,7 +97,7 @@ void main()
 				#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
 					if(GetViewPos().x > 0.0)
 					{
-						finalColor += combined_ambient_probe_brdf(S_input_rt, cspec, cdiff, csub, wn, SubsurfaceNormal, R, wv, ambRoughness, RoughnessEpidermal, SubsurfaceMask, Subsurface, ambient_occlusion, saturate(ssr_mask));
+						finalColor += combined_ambient_probe_brdf(S_input_rt, cspec, cdiff, csub, wn, SubsurfaceNormal, R, wv, ambRoughness, RoughnessEpidermal, SubsurfaceMask, Subsurface, saturate(ssr_mask));
 					}
 					else
 					{	
@@ -111,7 +111,7 @@ void main()
 						finalColor.a = saturate(finalColor.a);	
 					}
 				#else
-					finalColor += combined_ambient_probe_brdf(S_input_rt, cspec, cdiff, csub, wn, SubsurfaceNormal, R, wv, ambRoughness, RoughnessEpidermal, SubsurfaceMask, Subsurface, ambient_occlusion, saturate(ssr_mask));
+					finalColor += combined_ambient_probe_brdf(S_input_rt, cspec, cdiff, csub, wn, SubsurfaceNormal, R, wv, ambRoughness, RoughnessEpidermal, SubsurfaceMask, Subsurface, saturate(ssr_mask));
 				#endif
 			#else
 				

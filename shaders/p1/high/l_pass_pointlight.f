@@ -104,21 +104,7 @@ void main()
 	float4 finalColor;
 
 //	finalColor.rgb = n_dot_l * lightcolor;
-	
 
-	//TODO @Timon this is all so wrong, but historical reasons... 
-#ifdef LOCALSPEC
-	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, IO_SpecularIntensity * n_dot_l, n_dot_l_sss * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, true) * lightcolor;
-#else
-	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0, n_dot_l_sss * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
-#endif
-
-	float atten = PSquareDistanceAtt;
-	finalColor.rgb *= atten;
-	finalColor.a = 1;
-	
-	finalColor = DEFERRED_HACK_TO_sRGB(finalColor);
-	
 	float diffuse_occlusion = 1.0f;// AO used to attenuate diffuse component
 	if (B_ssao_enabled) {
 		float ambient_occlusion = GetSSAO();
@@ -127,9 +113,24 @@ void main()
 	else {//TODO @Timon without this the attenuation breaks with vulkan nvidia-381.22 geforce 650ti on linux
 		  //looks like either glslang or nvidia-driver bug, or I'm not aware of some detail of the spec
 		diffuse_occlusion = 1.0f;
-	}
+	}	
 
-	OUT_Color.rgb = finalColor.rgb*diffuse_occlusion;
+	//TODO @Timon this is all so wrong, but historical reasons... 
+#ifdef LOCALSPEC
+	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(saturate(dot(SubsurfaceNormal, l)), IO_SpecularIntensity * n_dot_l, n_dot_l_sss * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, true) * lightcolor;
+#else
+	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(saturate(dot(SubsurfaceNormal, l)), 0, n_dot_l_sss), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
+#endif
+
+	float atten = PSquareDistanceAtt;
+	finalColor.rgb *= atten;
+	finalColor.a = 1;
+	
+	finalColor = DEFERRED_HACK_TO_sRGB(finalColor);
+	
+
+
+	OUT_Color.rgb = finalColor.rgb * diffuse_occlusion;
 	OUT_Color.a = 0;
 
 	LPASS_SHAPE_FINAL_ATTEN(atten)

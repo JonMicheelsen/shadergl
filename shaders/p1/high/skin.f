@@ -35,7 +35,7 @@ void main()
 		MetalnessVal *= tex2D(S_metal_map, IO_uv0).r;
 	}
 #ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING	
-	MetalnessVal = max(0.0, MetalnessVal * 2.0 - 1.0);//clean that mess up int he textuyres later
+	MetalnessVal = max(0.0, MetalnessVal * 2.0 - 1.5);//clean that mess up int he textuyres later
 	SubsurfaceVal *= (1.0 - min(1.0, MetalnessVal * 256));
 #endif	
 
@@ -60,9 +60,9 @@ void main()
 		//we could improve with faint parallax
 		SubsurfaceBlur				*= 1.0 - exp(-dot(ColorBaseDiffuse.rgb, vec3(0.2126, 0.7152, 0.0722)) * SubsurfaceVal) * 2.0;
 		
-		ColorBaseDiffuse			= texture(S_diffuse_map, IO_uv0, SubsurfaceBlur).rgba;	//Base Diffuse + alpha
-		ColorBaseDiffuse.rgb		= blendAlpha(ColorBaseDiffuse.rgb, mul(ColorBaseDiffuse.rgb, inCOLORMATRIX_BASE), ColorBaseDiffuse.a);	
-	}		
+		vec4 ColorBaseSSS			= texture(S_diffuse_map, IO_uv0, SubsurfaceBlur).rgba;	//Base Diffuse + alpha
+		ColorBaseDiffuse.rgb		= mix(ColorBaseDiffuse.rgb, blendAlpha(ColorBaseSSS.rgb, mul(ColorBaseSSS.rgb, inCOLORMATRIX_BASE), ColorBaseSSS.a), SubsurfaceVal);	
+	}
 #endif	
 	
 	CONST half3 diffnorm = ColorBaseDiffuse.rgb;
@@ -111,7 +111,7 @@ void main()
 	// DEFERRED_OUTPUT(Normal.xyz, vec3(0, 0, -1), cc, ColorBaseDiffuse.rgb, ColorGlow, GlowStr, MetalnessVal, SmoothnessVal);
 //	GENERAL_OUTPUT(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SmoothnessVal, ColorGlow);
 #ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
-	ColorBaseDiffuse.rgb = bit_pack_albedo_normal(ColorBaseDiffuse.rgb, normalize(IO_normal), SubsurfaceVal);
+	ColorBaseDiffuse.rgb = bit_pack_albedo_normal(ColorBaseDiffuse.rgb, normalize(mix(Normal, IO_normal, SubsurfaceVal)), SubsurfaceVal);
 	GENERAL_OUTPUT_SUBSURFACE(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SubsurfaceVal, SmoothnessVal, ColorGlow);
 #else	
 	GENERAL_OUTPUT(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SmoothnessVal, ColorGlow);

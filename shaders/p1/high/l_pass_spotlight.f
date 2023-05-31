@@ -132,7 +132,15 @@ void main()
 	float n_dot_l_sss = sss_wrap_dot(l, SubsurfaceNormal, Subsurface);
 
 //	vec3 clight = lightcolor;
-
+	float diffuse_occlusion = 1.0f;
+	if (B_ssao_enabled) {
+		float ambient_occlusion = GetSSAO();
+		diffuse_occlusion = saturate(ambient_occlusion);
+	}
+	else {//TODO @Timon without this the attenuation breaks with vulkan nvidia-381.22 geforce 650ti on linux
+		  //looks like either glslang or nvidia-driver bug, or I'm not aware of some detail of the spec
+		diffuse_occlusion = 1.0f;
+	}
 	float3 light;
 //	#if 0
 //		#ifdef LOCALSPEC
@@ -142,7 +150,7 @@ void main()
 //		#endif
 //	#else
 //		#ifdef LOCALSPEC
-			light = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0.0, n_dot_l_sss * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
+			light = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(saturate(dot(SubsurfaceNormal, l)), 0.0, n_dot_l_sss * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, diffuse_occlusion, false) * lightcolor;
 //		#else
 //			light = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, false) * lightcolor;
 //		#endif
@@ -159,15 +167,7 @@ void main()
 	finalColor.rgb *= atten;
 	finalColor.a = 1;
 
-	float diffuse_occlusion = 1.0f;
-	if (B_ssao_enabled) {
-		float ambient_occlusion = GetSSAO();
-		diffuse_occlusion = saturate(ambient_occlusion);
-	}
-	else {//TODO @Timon without this the attenuation breaks with vulkan nvidia-381.22 geforce 650ti on linux
-		  //looks like either glslang or nvidia-driver bug, or I'm not aware of some detail of the spec
-		diffuse_occlusion = 1.0f;
-	}
+
 
 	finalColor = DEFERRED_HACK_TO_sRGB(finalColor);
 	finalColor.rgb = clamp(finalColor.rgb, 0, 2) * diffuse_occlusion; // reduce flares

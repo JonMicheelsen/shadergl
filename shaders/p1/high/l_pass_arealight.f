@@ -388,11 +388,10 @@ void main()
 				}
 		
 				#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
-					float n_dot_l_sss = sss_wrap_dot(ldiff, SubsurfaceNormal, Subsurface); //since we can't shadow we approximate with this instead
+					float n_dot_l_sss = sss_wrap_dot(ldiff, SubsurfaceNormal, Subsurface) * ambient_occlusion; //since we can't shadow we approximate with this instead
 					//finalColor.rgb += saturate(dot(Normal, ldiff)) * diffuse_occlusion * INVPI * lightcolor;
 					vec3 h = normalize(ldiff + v);
-					finalColor.rgb += (cdiff * lightcolor) * (chan_diff(a2, dot(v, Normal), diffndotl, saturate(dot(v, h)), saturate(dot(Normal, h)), 1.0, cspec) * diffuse_occlusion * diffndotl);
-					finalColor.rgb += sss_direct_approx(abs(dot(ldiff, SubsurfaceNormal)), csub, cdiff) * n_dot_l_sss;
+					finalColor.rgb += (cdiff * lightcolor) * (chan_diff(a2, dot(v, Normal), diffndotl, saturate(dot(v, h)), saturate(dot(Normal, h)), 1.0, cspec) * diffuse_occlusion * saturate(dot(SubsurfaceNormal, ldiff))) * JON_MOD_GLOBAL_DIFFUSE_INTENSITY;
 				#else	
 					// diffuse contribution
 					vec3 Idiff = lightcolor * diffndotl * diffuse_occlusion;
@@ -416,13 +415,18 @@ void main()
 			//	finalColor.rgb += Ispec * EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec2(0,1));
 				#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 					finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec3(0.0, specatten * n_dot_l * IO_SpecIntensity, 0.0), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
+					#ifdef JON_MOD_SUBSURFACE_SQUARED_NDX
+						float n_dot_l_abs = pow2(dot(ldiff, SubsurfaceNormal));
+					#else
+						float n_dot_l_abs = abs(dot(ldiff, SubsurfaceNormal));
+					#endif
+					finalColor.rgb += sss_direct_approx(n_dot_l_abs * diffuse_occlusion, csub, cdiff) * n_dot_l_sss * D_GGX(0.36, saturate(dot(v, -Lnorm))) * JON_MOD_GLOBAL_SUBSURFACE_INTENSITY;
 				#else
 					// specular contribution
 					// vec3 Ispec = IO_SpecIntensity * IO_Intensity * IO_lightcolor.rgb * specatten * diffndotl;
 					vec3 Ispec = IO_SpecIntensity * lightcolor * specatten * n_dot_l;
 					finalColor.rgb += Ispec * EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec2(0,1));
-				#endif				
-				
+				#endif						
 			}
 			finalColor.rgb *= atten;
 		
