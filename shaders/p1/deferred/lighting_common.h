@@ -173,7 +173,6 @@ vec3 EvalBRDF(	in vec3 cspec,
 	if(fullV)
 	{
 		V = V_Smith(a, n_dot_v, n_dot_l);
-//		csub *= D_GGX(0.36, saturate(dot(v, -l)));//chances are high we only want directional intensity to subsurface scattering if we also want geometric attenuation
 	}
 	float specular_aliasing_kill = saturate(n_dot_v_raw * 200.0 + 1.0);//the normals can point around the horizon, which makes a mess with the specular!
 	mask *= vec3(JON_MOD_GLOBAL_DIFFUSE_INTENSITY, JON_MOD_GLOBAL_SPECULAR_INTENSITY, JON_MOD_GLOBAL_SUBSURFACE_INTENSITY);

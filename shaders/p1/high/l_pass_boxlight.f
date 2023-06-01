@@ -135,7 +135,8 @@ void main()
 		#ifdef LOCALSPEC
 //			finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec3(0.0, specatten * n_dot_l * IO_SpecIntensity, 0.0), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
 			//Jon Note, this light type are the most common culprits for strange artefacts on characters' faces, so how about we just disable the specular part in those cases?
-			finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, n_dot_l * IO_SpecularIntensity * (1.0 - SubsurfaceMask), sss_wrap_dot(l, SubsurfaceNormal, Subsurface) * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal,  true) * lightcolor;
+			finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, n_dot_l * IO_SpecularIntensity, sss_wrap_dot(l, SubsurfaceNormal, Subsurface) * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal,  true) * lightcolor;
+			
 		#else
 			finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0.0, sss_wrap_dot(l, SubsurfaceNormal, Subsurface) * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
 		#endif

@@ -111,7 +111,7 @@ float chan_diff(float a2, float n_dot_v, float n_dot_l, float v_dot_h, float n_d
 float sss_wrap_dot(vec3 l, vec3 n, float subsurface)
 {
     subsurface *= JON_MOD_SUBSURFACE_WRAP_SCALE;
-	return max(0.0, (dot(l, n) + subsurface) * (1.0 / (1.0 + subsurface)));
+	return max(0.0, (dot(l, n) + subsurface) * (1.0 / (1.0 + subsurface))) * INVPI;// match it to regular diffuse, and note that this is only called to non ambient light!
 //	return saturate((-dot(l, n) + subsurface JON_MOD_SUBSURFACE_WRAP_SCALE) / pow2(1.0 + JON_MOD_SUBSURFACE_WRAP_SCALE));
 }
 

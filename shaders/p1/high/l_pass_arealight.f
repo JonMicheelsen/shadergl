@@ -420,7 +420,7 @@ void main()
 					#else
 						float n_dot_l_abs = abs(dot(ldiff, SubsurfaceNormal));
 					#endif
-					finalColor.rgb += sss_direct_approx(n_dot_l_abs * diffuse_occlusion, csub, cdiff) * n_dot_l_sss * D_GGX(0.36, saturate(dot(v, -Lnorm))) * JON_MOD_GLOBAL_SUBSURFACE_INTENSITY;
+					finalColor.rgb += sss_direct_approx(n_dot_l_abs * diffuse_occlusion, csub, cdiff) * n_dot_l_sss * JON_MOD_GLOBAL_SUBSURFACE_INTENSITY;
 				#else
 					// specular contribution
 					// vec3 Ispec = IO_SpecIntensity * IO_Intensity * IO_lightcolor.rgb * specatten * diffndotl;

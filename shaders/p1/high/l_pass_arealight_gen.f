@@ -395,7 +395,7 @@ void main()
 			specatten = specatten - specatten * horizon;
 			#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 				finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec3(0.0, specatten * n_dot_l * IO_SpecIntensity, 0.0), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
-				finalColor.rgb += sss_direct_approx(abs(dot(ldiff, SubsurfaceNormal)) * diffuse_occlusion, csub, cdiff) * n_dot_l_sss * D_GGX(0.36, saturate(dot(v, -Lnorm))) * JON_MOD_GLOBAL_SUBSURFACE_INTENSITY;
+				finalColor.rgb += sss_direct_approx(abs(dot(ldiff, SubsurfaceNormal)) * diffuse_occlusion, csub, cdiff) * n_dot_l_sss * JON_MOD_GLOBAL_SUBSURFACE_INTENSITY;
 			#else
 				// specular contribution
 				// vec3 Ispec = IO_SpecIntensity * IO_Intensity * IO_lightcolor.rgb * specatten * diffndotl;
