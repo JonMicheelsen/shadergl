@@ -30,12 +30,15 @@
 	#define JON_MOD_SUBSURFACE_SUBDERMAL_SPEC_CAP 0.95	
 	#define JON_MOD_SUBSURFACE_WRAP_SCALE 0.1//default 0.25, 
 	#define JON_MOD_SUBSURFACE_SQUARED_NDX //much more energetic but perhaps more natural looking 
-	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_HUMAN 		vec3(1.0	,0.627	,0.447) // Human, just this for now... TODO implement the rest
-	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_TELADI 		vec3(0.749	,0.569	,0.267) // losely based on berber skink
-	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_BORON 		vec3(0.263	,0.882	,0.859) // blue greenish laguna like
-	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_PARANID 		vec3(0.31	,0.247	,0.792) // losely based on blue blooded horse shoe and purple blooded red rock crabs
-	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_FOLIAGE 		vec3(0.6	,1.0	,0.06) // spring leaves ish, good baseline
-	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_ICE_ASTEROID 	vec3(0.357	,0.78	,1.0) //water ice
+	#define JON_MOD_SUBSURFACE_ID_COUNT 8
+																						// 0 default no SSS
+	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_HUMAN 		vec3(1.0	,0.627	,0.447) // 1 Human, just this for now... TODO implement the rest
+	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_TELADI 		vec3(0.749	,0.569	,0.267) // 2 losely based on berber skink
+	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_BORON 		vec3(0.263	,0.882	,0.859) // 3 blue greenish laguna like
+	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_PARANID 		vec3(0.31	,0.247	,0.792) // 4 losely based on blue blooded horse shoe and purple blooded red rock crabs
+	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_FOLIAGE 		vec3(0.6	,1.0	,0.060) // 5 spring leaves ish, good baseline
+	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_ICE_ASTEROID 	vec3(0.357	,0.78	,1.000) // 6 water ice
+	#define JON_MOD_SUBSURFACE_SCATTER_EYE					vec3(1.0	,0.627	,0.447) // 7 eyes probably pretty generic?
 //	#define JON_MOD_BORON_SUBSURFACE_GLOW //disabled in the code, needs more polish!
 #define JON_MOD_ENABLE_FULL_ANGLE_CORRECTED_CHARACTER_NORMAL_COMPOSITING
 
