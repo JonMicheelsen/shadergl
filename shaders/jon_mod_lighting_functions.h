@@ -110,10 +110,9 @@ float chan_diff(float a2, float n_dot_v, float n_dot_l, float v_dot_h, float n_d
 }
 float sss_wrap_dot(vec3 l, vec3 n, float subsurface)
 {
-	return max(0.0, (dot(l, n) - JON_MOD_SUBSURFACE_WRAP_SCALE * subsurface) * (1.0 / (1.0 - JON_MOD_SUBSURFACE_WRAP_SCALE * subsurface)));
-	
-//	float wrap = 0.5;
-//	return saturate((-dot(l, n) + wrap) / pow2( 1 + wrap ));
+    subsurface *= JON_MOD_SUBSURFACE_WRAP_SCALE;
+	return max(0.0, (dot(l, n) + subsurface) * (1.0 / (1.0 + subsurface)));
+//	return saturate((-dot(l, n) + subsurface JON_MOD_SUBSURFACE_WRAP_SCALE) / pow2(1.0 + JON_MOD_SUBSURFACE_WRAP_SCALE));
 }
 
 vec3 sss_direct_approx(float n_dot_l_abs, vec3 subsurface_scatter_radius, vec3 surface_color)

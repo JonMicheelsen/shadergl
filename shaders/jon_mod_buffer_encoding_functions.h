@@ -36,8 +36,8 @@ void UnpackMetalSubsurface(inout float Metal, inout float Subsurface)
 			{		
 		#endif
 			//Metal and Subsurface are natureally mutually exclusice, so we can pack both in metal
-			Subsurface = max(0.0, 1.0 - Metal * 2.0);
-			Metal = max(0.0, Metal * 2.0 - 1.0);
+			Subsurface = saturate(1.0 - Metal * 2.0);
+			Metal = saturate(Metal * 2.0 - 1.0);
 		#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
 			}
 		#endif
@@ -96,7 +96,7 @@ vec3 bit_pack_albedo_normal(in vec3 albedo, in vec3 normal, in float subsurface)
 	//assumes the normal to be normalized!
 	return subsurface > 0.0 ? (floor(albedo * scale) + (normal * 0.5 + 0.5) * (1.0 - scale_bit_pack)) * scale_bit_pack : albedo;
 }
-void bit_unpack_albedo_normal(inout vec3 albedo, inout vec3 subsurface_normal, in float subsurface_mask)
+void bit_unpack_albedo_normal(inout vec3 albedo, inout vec3 subsurface_normal, in float subsurface_mask, in float subsurface)
 {
 	const float scale = 128.0;
 	const float scale_bit_pack = 1.0 / scale;
@@ -105,7 +105,7 @@ void bit_unpack_albedo_normal(inout vec3 albedo, inout vec3 subsurface_normal, i
 	//assumes subsurface_normal is passed in defined as the regular normal, to avoid NaN's, if it was 0!
 	if(subsurface_mask > 0)
 	{
-		subsurface_normal = normalize(((albedo * scale - floor(albedo * scale)) * scale_normal) * 2.0 - 1.0);
+		subsurface_normal = normalize(mix(subsurface_normal, (albedo * scale - floor(albedo * scale)) * scale_normal * 2.0 - 1.0, subsurface));
 		albedo = floor(albedo * scale) * scale_bit_pack;
 	}
 }
@@ -123,7 +123,7 @@ void get_colors(in vec3 albedo,
 {
 	UnpackMetalSubsurface(metalness, subsurface);
 	subsurface_mask = min(1.0, ceil(max(0.0, subsurface - 0.001)));
-	bit_unpack_albedo_normal(albedo, nsub, subsurface_mask);
+	bit_unpack_albedo_normal(albedo, nsub, subsurface_mask, subsurface);
 	#ifdef JON_MOD_DEBUG_GREY_WORLD
 		albedo = vec3(0.5);
 	#endif

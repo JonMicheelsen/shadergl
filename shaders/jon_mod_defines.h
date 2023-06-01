@@ -28,7 +28,7 @@
 	#define JON_MOD_SUBSURFACE_EPIDERMAL_TINT vec3(0.968750, 0.833764, 0.483325) //vec3(0.910580, 0.338275, 0.271800) vec3(1.000000,0.088964,0.072095)
 	#define JON_MOD_SUBSURFACE_EPIDERMAL_F0 0.0224f	//se notes above
 	#define JON_MOD_SUBSURFACE_SUBDERMAL_SPEC_CAP 0.95	
-	#define JON_MOD_SUBSURFACE_WRAP_SCALE 0.1//default 0.25, 
+	#define JON_MOD_SUBSURFACE_WRAP_SCALE 0.0//default 0.25, 
 	#define JON_MOD_SUBSURFACE_SQUARED_NDX //much more energetic but perhaps more natural looking 
 	#define JON_MOD_SUBSURFACE_ID_COUNT 8
 																						// 0 default no SSS
