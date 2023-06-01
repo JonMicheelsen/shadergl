@@ -134,9 +134,9 @@ void main()
 		*/
 		#ifdef LOCALSPEC
 //			finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec3(0.0, specatten * n_dot_l * IO_SpecIntensity, 0.0), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
-			finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(saturate(dot(SubsurfaceNormal, l)), n_dot_l * IO_SpecularIntensity, sss_wrap_dot(l, SubsurfaceNormal, Subsurface) * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal,  true) * lightcolor;
+			finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, n_dot_l * IO_SpecularIntensity, sss_wrap_dot(l, SubsurfaceNormal, Subsurface) * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal,  true) * lightcolor;
 		#else
-			finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(saturate(dot(SubsurfaceNormal, l)), 0.0, sss_wrap_dot(l, SubsurfaceNormal, Subsurface) * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
+			finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0.0, sss_wrap_dot(l, SubsurfaceNormal, Subsurface) * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
 		#endif
 
 		float atten = PSquareDistanceAtt;

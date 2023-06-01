@@ -117,9 +117,9 @@ void main()
 
 	//TODO @Timon this is all so wrong, but historical reasons... 
 #ifdef LOCALSPEC
-	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(saturate(dot(SubsurfaceNormal, l)), IO_SpecularIntensity * n_dot_l, n_dot_l_sss * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, true) * lightcolor;
+	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, IO_SpecularIntensity * n_dot_l, n_dot_l_sss * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, true) * lightcolor;
 #else
-	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(saturate(dot(SubsurfaceNormal, l)), 0, n_dot_l_sss), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
+	finalColor.rgb = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0, n_dot_l_sss), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
 #endif
 
 	float atten = PSquareDistanceAtt;

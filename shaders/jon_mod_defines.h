@@ -30,7 +30,7 @@
 	#define JON_MOD_SUBSURFACE_SUBDERMAL_SPEC_CAP 0.95	
 	#define JON_MOD_SUBSURFACE_WRAP_SCALE 0.1//default 0.25, 
 	#define JON_MOD_SUBSURFACE_SQUARED_NDX //much more energetic but perhaps more natural looking 
-	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_HUMAN 		vec3(1.0	,0.263	,0.067) // Human, just this for now... TODO implement the rest
+	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_HUMAN 		vec3(1.0	,0.627	,0.447) // Human, just this for now... TODO implement the rest
 	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_TELADI 		vec3(0.749	,0.569	,0.267) // losely based on berber skink
 	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_BORON 		vec3(0.263	,0.882	,0.859) // blue greenish laguna like
 	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_PARANID 		vec3(0.31	,0.247	,0.792) // losely based on blue blooded horse shoe and purple blooded red rock crabs
@@ -73,14 +73,14 @@
 
 /// these should all be 1 always, but it allows you to preview each in their isolation by setting the others to 0
 #define JON_MOD_GLOBAL_DIFFUSE_INTENSITY 1.0
-#define JON_MOD_GLOBAL_SPECULAR_INTENSITY 0.0
-#define JON_MOD_GLOBAL_SUBSURFACE_INTENSITY 0.0
+#define JON_MOD_GLOBAL_SPECULAR_INTENSITY 1.0
+#define JON_MOD_GLOBAL_SUBSURFACE_INTENSITY 1.0
 	
 //#define JON_MOD_DEBUG_SUBSURFACE_NORMALS
 //#define JON_MOD_DEBUG_BASE_NORMALS
 //#define JON_MOD_DEBUG_GREY_WORLD
 //#define JON_MOD_DEBUG_WHITE_FURNACE_AMBIENT
-//define JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
+//#define JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
 // orange = l_pass_arealight_gen.f
 // teal = l_pass_arealight.f
 // blue = l_pass_boxlight.f

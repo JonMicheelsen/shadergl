@@ -150,7 +150,7 @@ void main()
 //		#endif
 //	#else
 //		#ifdef LOCALSPEC
-			light = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(saturate(dot(SubsurfaceNormal, l)), 0.0, n_dot_l_sss * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, diffuse_occlusion, false) * lightcolor;
+			light = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0.0, n_dot_l_sss * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, diffuse_occlusion, false) * lightcolor;
 //		#else
 //			light = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, false) * lightcolor;
 //		#endif

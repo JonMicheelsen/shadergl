@@ -1495,10 +1495,10 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 	// vec3 cdiff = Albedo * saturate(1.0f - luminance(cspec)); // alt energy conservation
 #ifdef JON_MOD_DEBUG_SUBSURFACE_NORMALS
 	return pow(vec3(wnsub * 0.5 + 0.5), vec3(2.2));
-#ndif
+#endif
 #ifdef JON_MOD_DEBUG_BASE_NORMALS
 	return pow(vec3(wn * 0.5 + 0.5), vec3(2.2));
-#ndif
+#endif
 	
 	// dirlight data
 	vec3 ldirs[2];
@@ -1522,7 +1522,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 	lcolors[1] = vec3(0.0, level, level);
 #endif 
 	for (int i = 0; i < 2; ++i) {
-		direct_occlusions[i] = vec3(saturate(dot(ldirs[i], wnsub)), saturate(dot(ldirs[i], wn)), SubsurfaceMask * sss_wrap_dot(ldirs[i], wnsub, Subsurface));
+		direct_occlusions[i] = vec3(saturate(dot(ldirs[i], wn)), saturate(dot(ldirs[i], wn)), SubsurfaceMask * sss_wrap_dot(ldirs[i], wnsub, Subsurface));
 	}
 	
 	//vec3 l = mat3(M_view) * normalize(V_direction1.xyz);
