@@ -1473,12 +1473,12 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 	// vec3 cdiff = Albedo * (1-Metalness);
 	vec3 cspec = vec3(0);
 	vec3 cdiff = vec3(0);
+	vec3 csub = vec3(0);
+	vec3 wnsub = wn;
+	float Subsurface = 0;
+	float SubsurfaceMask = 0;
+	float RoughnessEpidermal = 0.5;
 	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
-		vec3 csub = vec3(0);
-		vec3 wnsub = wn;
-		float Subsurface = 0;
-		float SubsurfaceMask = 0;
-		float RoughnessEpidermal = 0.5;
 		get_colors(	Albedo, 
 					Metalness, 
 					Roughness, 
@@ -1578,8 +1578,10 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 #endif
 #endif
 
+
 	// light accumulation
-	vec3 light_accum = vec3(0);
+	vec3 light_accum = vec3(0.0);
+
 #ifdef JON_MOD_SSSHADOWS
 	vec3 ss_shadow_debug = vec3(0.0);
 #endif	
@@ -1602,7 +1604,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 				ss_shadow_debug.b = direct_occlusions[JON_MOD_SSSHADOWS_LIGHT_TO_DEBUG].x;
 			#endif
 			//screenspace shadow
-			if((direct_occlusions[i].x * (fade_near + fade)) > 0.001)
+			if(min(direct_occlusions[i].x, direct_occlusions[i].y) * (fade_near + fade) > 0.001)
 			{
 				#ifndef JON_MOD_SSSHADOWS_SUPPORT_BOTH_PRIMARY_LIGHTS
 				if(i > 0)
@@ -1626,14 +1628,12 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 			#endif
 		#endif
 		direct_occlusions[i] *= ss_shadow;
-
 		// todo: slightly refactor the following
 		vec3 L;
-		direct_occlusions[i].x *= EvalSphereLight(light_radius, ldirs[i] * 1000, wv, wn, wr, Roughness, L);
-		vec3 E_sph = lcolors[i]; 
-		//E_sph *= PI; // diffuse normalization
+		direct_occlusions[i] *= EvalSphereLight(light_radius, ldirs[i] * 1000, wv, wn, wr, Roughness, L);
+
 		L = normalize(L);
-		
+
 		#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 			light_accum += EvalBRDF(cspec,
 									cdiff, 
@@ -1646,10 +1646,11 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 									RoughnessEpidermal, 
 									csub,
 									wnsub,			
-									true) * lcolors[i];//specular, diffuse and subsurface
+									true) * lcolors[i];
 		#else
-			light_accum += (EvalBRDF(cspec, cdiff, Roughness, L, wv, wn, vec2(1)) * lcolors[i]) * direct_occlusions[i].y; // specular, diffuse
+			light_accum += (EvalBRDF(cspec, cdiff, Roughness, L, wv, wn, vec2(1)) * lcolors[i]) * direct_occlusions[i].y;
 		#endif
+
 		// clearcoat
 		//float clearcoat_spec = cc * EvalBRDF(vec3(0.05), cdiff, 0.1, L, v, Normal2, vec2(0,1)).r; // ok since dielectric reflection
 		//light_accum += clearcoat_spec * E_sph;
@@ -1739,8 +1740,9 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 		light_accum = ss_shadow_debug;
 	#endif
 	#ifdef JON_MOD_DEBUG_SUBSURFACE
-		light_accum += SubsurfaceMask * vec3(1.0, Subsurface, 1.0);
+		light_accum += SubsurfaceMask * vec3(1.0, Subsurface, 0.0);
 	#endif
+
 	return DEFERRED_HACK_TO_sRGB(light_accum);//Jon No, we already acounted for this!// * ambient_occlusion;	//TODO why is there a double ambient_occlusion multiply?!
 }
 

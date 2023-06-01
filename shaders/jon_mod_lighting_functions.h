@@ -110,10 +110,10 @@ float chan_diff(float a2, float n_dot_v, float n_dot_l, float v_dot_h, float n_d
 }
 float sss_wrap_dot(vec3 l, vec3 n, float subsurface)
 {
-	//return max(0.0, (dot(l, n) - JON_MOD_SUBSURFACE_WRAP_SCALE * subsurface) * (1.0 / (1.0 - JON_MOD_SUBSURFACE_WRAP_SCALE * subsurface)));
+	return max(0.0, (dot(l, n) - JON_MOD_SUBSURFACE_WRAP_SCALE * subsurface) * (1.0 / (1.0 - JON_MOD_SUBSURFACE_WRAP_SCALE * subsurface)));
 	
-	float wrap = 0.5;
-	return saturate((-dot(l, n) + wrap) / pow2( 1 + wrap ));
+//	float wrap = 0.5;
+//	return saturate((-dot(l, n) + wrap) / pow2( 1 + wrap ));
 }
 
 vec3 sss_direct_approx(float n_dot_l_abs, vec3 subsurface_scatter_radius, vec3 surface_color)
@@ -121,7 +121,7 @@ vec3 sss_direct_approx(float n_dot_l_abs, vec3 subsurface_scatter_radius, vec3 s
 	#ifdef JON_MOD_SUBSURFACE_SQUARED_NDX
 		n_dot_l_abs = pow2(n_dot_l_abs);
 	#endif
-	return exp(-3.0 * n_dot_l_abs / (subsurface_scatter_radius + 0.001)) * surface_color * subsurface_scatter_radius * INVPI;// * 0.2;
+	return max(vec3(0.0), exp(-3.0 * n_dot_l_abs / (subsurface_scatter_radius + 0.001))) * surface_color * subsurface_scatter_radius;
 }
 
 // https://iryoku.com/downloads/Practical-Realtime-Strategies-for-Accurate-Indirect-Occlusion.pdf
@@ -239,7 +239,7 @@ vec4 combined_ambient_probe_brdf(	samplerCube filtered_env_map,
 									float ssr_mask)
 {
 	#ifdef JON_MOD_DEBUG_DISABLE_AMBIENT_LIGHT
-		return vec3(0.0);
+		return vec4(0.0);
 	#endif		
 	#if 1
 		int lowest_mip = max_spec_level_less_strict(filtered_env_map);

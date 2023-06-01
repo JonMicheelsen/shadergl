@@ -168,13 +168,14 @@ vec3 EvalBRDF(	in vec3 cspec,
 	// return vec3(v_dot_h);
 	// return (cdiff/PI);
 //	float V = 0.5 * 1.0 / max(e, n_dot_l * (n_dot_v * (1-a)+a) + n_dot_v * (n_dot_l * (1-a)+a));//happens with MSAA on mesh edges, there are other ways to catch it (e.g. early per-light if (n_dot_l <= 0) discard) but this seems the most universal at first glance? although it could result in more pronounced highlights at edges? TODO @Timon/Markus test
+
 	float V = 0.25;
 	if(fullV)
 	{
 		V = V_Smith(a, n_dot_v, n_dot_l);
-		csub *= D_GGX(0.36, saturate(dot(v, -l)));//chances are high we only want directional intensity to subsurface scattering if we also want geometric attenuation
+//		csub *= D_GGX(0.36, saturate(dot(v, -l)));//chances are high we only want directional intensity to subsurface scattering if we also want geometric attenuation
 	}
-	float specular_aliasing_kill = saturate(n_dot_v_raw * 200.0 + 1);//the normals can point around the horizon, which makes a mess with the specular!
+	float specular_aliasing_kill = saturate(n_dot_v_raw * 200.0 + 1.0);//the normals can point around the horizon, which makes a mess with the specular!
 	mask *= vec3(JON_MOD_GLOBAL_DIFFUSE_INTENSITY, JON_MOD_GLOBAL_SPECULAR_INTENSITY, JON_MOD_GLOBAL_SUBSURFACE_INTENSITY);
 	
 	return cdiff * mask.x + (D * V * mask.y * specular_aliasing_kill) * F + csub * mask.z;

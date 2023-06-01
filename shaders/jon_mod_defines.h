@@ -28,7 +28,7 @@
 	#define JON_MOD_SUBSURFACE_EPIDERMAL_TINT vec3(0.968750, 0.833764, 0.483325) //vec3(0.910580, 0.338275, 0.271800) vec3(1.000000,0.088964,0.072095)
 	#define JON_MOD_SUBSURFACE_EPIDERMAL_F0 0.0224f	//se notes above
 	#define JON_MOD_SUBSURFACE_SUBDERMAL_SPEC_CAP 0.95	
-	#define JON_MOD_SUBSURFACE_WRAP_SCALE 0.5//default 0.5, touch carefully! Currently not used
+	#define JON_MOD_SUBSURFACE_WRAP_SCALE 0.25//default 0.25, 
 	#define JON_MOD_SUBSURFACE_SQUARED_NDX //much more energetic but perhaps more natural looking 
 	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_HUMAN 		vec3(1.0	,0.263	,0.067) // Human, just this for now... TODO implement the rest
 	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_TELADI 		vec3(0.749	,0.569	,0.267) // losely based on berber skink
@@ -53,7 +53,7 @@
 #define JON_MOD_SSSHADOWS //default on
 	//near and far
 	//#define JON_MOD_SSSHADOWS_SUPPORT_BOTH_PRIMARY_LIGHTS //default on
-	#define JON_MOD_SSSHADOWS_MAX_STEPS 20 //default 64, it's pretty rare to ever go this high be aware this is a times 2
+	#define JON_MOD_SSSHADOWS_MAX_STEPS 32 //default 64, it's pretty rare to ever go this high be aware this is a times 2
 	#define JON_MOD_SSSHADOWS_DITHER 0.0 //default 4.0
 	//far
 	#define JON_MOD_SSSHADOWS_FADE_DISTANCE 5000.0 //not all PCF shadows have the same distance, so some lods will still shadow pop if we just use that, so with this we can enforce a max distance where everything will use Screenspace Shadows
