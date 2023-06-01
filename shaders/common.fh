@@ -1493,8 +1493,13 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 		get_colors(Albedo, Metalness, cspec, cdiff);
 	#endif
 	// vec3 cdiff = Albedo * saturate(1.0f - luminance(cspec)); // alt energy conservation
-
-	//	return pow(vec3(wnsub * 0.5 + 0.5), vec3(2.2));
+#ifdef JON_MOD_DEBUG_SUBSURFACE_NORMALS
+	return pow(vec3(wnsub * 0.5 + 0.5), vec3(2.2));
+#ndif
+#ifdef JON_MOD_DEBUG_BASE_NORMALS
+	return pow(vec3(wn * 0.5 + 0.5), vec3(2.2));
+#ndif
+	
 	// dirlight data
 	vec3 ldirs[2];
 	vec3 lcolors[2];

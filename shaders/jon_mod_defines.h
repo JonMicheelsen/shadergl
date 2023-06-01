@@ -28,7 +28,7 @@
 	#define JON_MOD_SUBSURFACE_EPIDERMAL_TINT vec3(0.968750, 0.833764, 0.483325) //vec3(0.910580, 0.338275, 0.271800) vec3(1.000000,0.088964,0.072095)
 	#define JON_MOD_SUBSURFACE_EPIDERMAL_F0 0.0224f	//se notes above
 	#define JON_MOD_SUBSURFACE_SUBDERMAL_SPEC_CAP 0.95	
-	#define JON_MOD_SUBSURFACE_WRAP_SCALE 0.25//default 0.25, 
+	#define JON_MOD_SUBSURFACE_WRAP_SCALE 0.1//default 0.25, 
 	#define JON_MOD_SUBSURFACE_SQUARED_NDX //much more energetic but perhaps more natural looking 
 	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_HUMAN 		vec3(1.0	,0.263	,0.067) // Human, just this for now... TODO implement the rest
 	#define JON_MOD_SUBSURFACE_SCATTER_RADIUS_TELADI 		vec3(0.749	,0.569	,0.267) // losely based on berber skink
@@ -73,9 +73,11 @@
 
 /// these should all be 1 always, but it allows you to preview each in their isolation by setting the others to 0
 #define JON_MOD_GLOBAL_DIFFUSE_INTENSITY 1.0
-#define JON_MOD_GLOBAL_SPECULAR_INTENSITY 1.0
-#define JON_MOD_GLOBAL_SUBSURFACE_INTENSITY 1.0
+#define JON_MOD_GLOBAL_SPECULAR_INTENSITY 0.0
+#define JON_MOD_GLOBAL_SUBSURFACE_INTENSITY 0.0
 	
+//#define JON_MOD_DEBUG_SUBSURFACE_NORMALS
+//#define JON_MOD_DEBUG_BASE_NORMALS
 //#define JON_MOD_DEBUG_GREY_WORLD
 //#define JON_MOD_DEBUG_WHITE_FURNACE_AMBIENT
 //define JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
