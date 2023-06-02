@@ -157,8 +157,8 @@ void main()
 	//SmoothnessVal = 0.6f;
 	//MetalnessVal = 0.0f;
 	// DEFERRED_OUTPUT(Normal.xyz, vec3(0, 0, -1), cc, ColorBaseDiffuse.rgb, ColorGlow, GlowStr, MetalnessVal, SmoothnessVal);
-	if(SubsurfaceVal > 0)
-		ColorBaseDiffuse.rgb = vec3(0.0, 0.5, 0.0);
+//	if(SubsurfaceVal > 0)
+//		ColorBaseDiffuse.rgb = vec3(0.0, 0.5, 0.0);
 #ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	ColorBaseDiffuse.rgb = bit_pack_albedo_normal(ColorBaseDiffuse.rgb, normalize(IO_normal), SubsurfaceVal);
 	GENERAL_OUTPUT_SUBSURFACE(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SubsurfaceVal, SmoothnessVal, ColorGlow);
