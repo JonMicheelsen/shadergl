@@ -20,7 +20,7 @@
 // Human skin highest index of refraction(IOR)1.55 = 0.58 in unreal dieletric specular, or #94, rgb148, 58%brightness, as linear color
 // Human hair(and nails technically too) highest index of refraction(IOR)1.55 = 0.58 in unreal specular, or #94, rgb148,
 // Specular scale is 0.08, so (0.28 * 0.08) = 0.0224 (0.58 * 0.08) = 0.0464 , etc...
-
+#define JON_MOD_USE_FAST_25TAP_CACSCADE_FILTER
 #define JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	#define JON_MOD_ENABLE_SUBSURFACE_BIAS_BLUR_TRICK
 	#define JON_MOD_SUBSURFACE_SUBDERMAL_ROUGHNESS 0.5

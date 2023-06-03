@@ -1555,8 +1555,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 		coords[2] = mul(float4(view_pos, 1), M_shadowCSM2);
 		coords[3] = mul(float4(view_pos, 1), M_shadowCSM3);
 		coords[4] = mul(float4(view_pos, 1), M_shadowCSM4);
-		direct_occlusions[0] *= saturate(fade + GetCSMShadow(direct_occlusions[0].x, coords));
-		
+		direct_occlusions[0] *= saturate(fade + GetCSMShadow(direct_occlusions[0].x, coords));	
 	/*	vec4 weights = getCSMWeights(coords);
 		float w0 = weights.x;
 		float w1 = min(1.0f-weights.x, weights.y);

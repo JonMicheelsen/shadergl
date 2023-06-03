@@ -1,7 +1,6 @@
 
 #define SHADOWMAP_SIZE 4096.0f
 //#define SHADER_BIAS
-
 float GetShadowSoft(sampler2D shadowmap, float4 coords)
 {
 	coords.xyz /= coords.w;
@@ -290,7 +289,90 @@ vec3 view2csm2(vec3 vp)
 }
 
 #ifndef DISABLE_SHADOW_HELPERS
+float Get9Sample25TapGather(sampler2DShadow shadowmap, vec2 coords, float shadow_comparison)
+{
+	#if 0
+		float shadow_sum = 0.0;
+		//float shadow_transition_scale = 0.1;//is there an Egosoft value already something along these lines perhaps?
+		//this method is actually NOT intended to be run on a sampler2DShadow bur that a reguler sampler2D
+		//how about we just try to manually filter it?
+		//for(int i = 5;)
+		//shadow_comparison = shadow_comparison * shadow_transition_scale - 1.0;
+		vec2 texel_pos = coords.xy * F_shadowmapsize - 0.5;
+		vec2 sample_fraction = fract(texel_pos);
+		vec2 sample_pos = ceil(texel_pos) / F_shadowmapsize;
+		
+		vec4 gather00 = textureGatherOffset(shadowmap, sample_pos, shadow_comparison, ivec2(-2, -2));// * shadow_transition_scale - shadow_comparison);
+		vec4 gather20 = textureGatherOffset(shadowmap, sample_pos, shadow_comparison, ivec2( 0, -2));// * shadow_transition_scale - shadow_comparison);
+		vec4 gather40 = textureGatherOffset(shadowmap, sample_pos, shadow_comparison, ivec2( 2, -2));// * shadow_transition_scale - shadow_comparison);
+		vec2 sum0;
+		sum0 =  gather00.wx * (1.0 - sample_fraction.x);
+		sum0 += gather00.zy;
+		sum0 += gather20.wx;
+		sum0 += gather20.zy;
+		sum0 += gather40.wx;
+		sum0 += gather40.zy * sample_fraction.x;
+		
+		shadow_sum += sum0.x * (1.0 - sample_fraction.y) + sum0.y;
+		
+		vec4 gather02 = textureGatherOffset(shadowmap, sample_pos, shadow_comparison, ivec2(-2, 0));// * shadow_transition_scale - shadow_comparison);
+		vec4 gather22 = textureGatherOffset(shadowmap, sample_pos, shadow_comparison, ivec2(0, 0));// * shadow_transition_scale - shadow_comparison);
+		vec4 gather42 = textureGatherOffset(shadowmap, sample_pos, shadow_comparison, ivec2(2, 0));// * shadow_transition_scale - shadow_comparison);
+		vec2 sum1;
+		sum1 =  gather02.wx * (1.0 - sample_fraction.x);
+		sum1 += gather02.zy;
+		sum1 += gather22.wx;
+		sum1 += gather22.zy;
+		sum1 += gather42.wx;
+		sum1 += gather42.zy * sample_fraction.x;	
+		shadow_sum += sum1.x + sum1.y;
+		
+		vec4 gather04 = textureGatherOffset(shadowmap, sample_pos, shadow_comparison, ivec2(-2, 2));// * shadow_transition_scale - shadow_comparison);
+		vec4 gather24 = textureGatherOffset(shadowmap, sample_pos, shadow_comparison, ivec2(0, 2));// * shadow_transition_scale - shadow_comparison);
+		vec4 gather44 = textureGatherOffset(shadowmap, sample_pos, shadow_comparison, ivec2(2, 2));// * shadow_transition_scale - shadow_comparison);
+		vec2 sum2;			
+		sum2 =  gather04.wx * (1.0 - sample_fraction.x);
+		sum2 += gather04.zy;
+		sum2 += gather24.wx;
+		sum2 += gather24.zy;
+		sum2 += gather44.wx;
+		sum2 += gather44.zy * sample_fraction.x;		
+		shadow_sum += sum2.x + sum2.y * sample_fraction.y;
+		return shadow_sum * 0.04;//*(1.0/25.0)
+	#else
+		return 1.0;
+	#endif
+}
 
+float GetCustomCSM(in float ndotl, in vec4 coords[5])
+{
+	#if 0
+		// cascade blending weights
+		vec4 weights = getCSMWeights(coords, ndotl);
+		float w0 = weights.x;
+		float w1 = min(1.0 - weights.x, weights.y);
+		float w2 = min(1.0 - weights.y, weights.z);
+		float w3 = min(1.0 - weights.z, weights.w);
+		float w4 = 1.0 - (weights.w + weights.z + weights.y + weights.x); // recheck this one
+		w4 = 1.0 - saturate(w0 + w1 + w2 + w3);
+		
+		float shadow = 0.0;
+		if (w0 > 0.0)
+			shadow += w0 * Get9Sample25TapGather(T_shadowCSM0, coords[0].xy, shadow_comparison);
+		if (w1 > 0.0)
+			shadow += w1 * Get9Sample25TapGather(T_shadowCSM1, coords[1].xy, shadow_comparison);
+		if (w2 > 0.0)
+			shadow += w2 * Get9Sample25TapGather(T_shadowCSM2, coords[2].xy, shadow_comparison);
+		if (w3 > 0.0)
+			shadow += w3 * Get9Sample25TapGather(T_shadowCSM3, coords[3].xy, shadow_comparison);
+		if (w4 > 0.0)
+			shadow += w4 * Get9Sample25TapGather(T_shadowCSM4, coords[4].xy, shadow_comparison);
+		
+		return shadow;
+	#else
+		return 1.0;
+	#endif
+}	
 float GetCSMShadow(in float ndotl, in vec4 coords[5])
 {
 #if D_SHADOW_QUALITY == 0
