@@ -1458,7 +1458,7 @@ float4 calc_Strauss_PBR(	CONST float3 N,
 	
 #endif
 
-#include <jon_mod_lighting_functions.h>
+#include <../../extensions/jm_x4_shaders/shadergl/shaders/jm_includes/jm_lighting_functions.h>
 
 vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metalness, in float Roughness, bool dossr, vec4 prev)
 {
@@ -1478,7 +1478,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 	float Subsurface = 0;
 	float SubsurfaceMask = 0;
 	float RoughnessEpidermal = 0.5;
-	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+	#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 		get_colors(	Albedo, 
 					Metalness, 
 					Roughness, 
@@ -1493,10 +1493,10 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 		get_colors(Albedo, Metalness, cspec, cdiff);
 	#endif
 	// vec3 cdiff = Albedo * saturate(1.0f - luminance(cspec)); // alt energy conservation
-#ifdef JON_MOD_DEBUG_SUBSURFACE_NORMALS
+#ifdef JM_DEBUG_SUBSURFACE_NORMALS
 	return pow(vec3(wnsub * 0.5 + 0.5), vec3(2.2));
 #endif
-#ifdef JON_MOD_DEBUG_BASE_NORMALS
+#ifdef JM_DEBUG_BASE_NORMALS
 	return pow(vec3(wn * 0.5 + 0.5), vec3(2.2));
 #endif
 	
@@ -1515,7 +1515,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 	lcolors[0] = XR_TO_linearRGB(V_lightcolor1.rgb) * F_globallightscale;
 	lcolors[1] = XR_TO_linearRGB(V_lightcolor2.rgb) * F_globallightscale;
 #endif
-#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
+#ifdef JM_DEBUG_DEBUG_LIGHT_TYPES
 	float level = dot(LUM_ITU601, lcolors[0]);
 	lcolors[0] = vec3(level, 0.0, 0.0);
 	level = dot(LUM_ITU601, lcolors[1]);
@@ -1530,7 +1530,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 	// shadows for mainlight
 	float Shadow = 0.0f;
 	vec4 test = vec4(0);
-#ifdef JON_MOD_SSSHADOWS
+#ifdef JM_SSSHADOWS
 	float fade = 0.0;
 #endif 		
 	
@@ -1543,7 +1543,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 		if (F_shadowmaxdistance < 6000.0f) {
 			FADE_STR_DIST = 0.7;
 		}
-		#ifdef JON_MOD_SSSHADOWS
+		#ifdef JM_SSSHADOWS
 			fade = saturate((length(view_pos) - (1.0 - FADE_STR) * F_shadowmaxdistance) / (FADE_STR_DIST * F_shadowmaxdistance));
 		#else
 			float fade = saturate((length(view_pos) - (1.0 - FADE_STR) * F_shadowmaxdistance) / (FADE_STR_DIST * F_shadowmaxdistance));
@@ -1586,7 +1586,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 	// light accumulation
 	vec3 light_accum = vec3(0.0);
 
-#ifdef JON_MOD_SSSHADOWS
+#ifdef JM_SSSHADOWS
 	vec3 ss_shadow_debug = vec3(0.0);
 #endif	
 	// dirlights
@@ -1600,22 +1600,22 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 
 		float ss_shadow = 1.0;
 		
-		#ifdef JON_MOD_SSSHADOWS
-			float fade_near = saturate(-(length(view_pos) - JON_MOD_SSSHADOWS_FADE_DISTANCE_NEAR) / (JON_MOD_SSSHADOWS_FADE_DISTANCE_NEAR * 0.5));
-			fade = max(fade, saturate((length(view_pos) - (1.0 - 0.1) * JON_MOD_SSSHADOWS_FADE_DISTANCE) / (0.5 * JON_MOD_SSSHADOWS_FADE_DISTANCE)));
-			#ifdef JON_MOD_SSSHADOWS_DEBUG_MODE
-				ss_shadow_debug.r = direct_occlusions[JON_MOD_SSSHADOWS_LIGHT_TO_DEBUG].x * (fade_near + fade);
-				ss_shadow_debug.b = direct_occlusions[JON_MOD_SSSHADOWS_LIGHT_TO_DEBUG].x;
+		#ifdef JM_SSSHADOWS
+			float fade_near = saturate(-(length(view_pos) - JM_SSSHADOWS_FADE_DISTANCE_NEAR) / (JM_SSSHADOWS_FADE_DISTANCE_NEAR * 0.5));
+			fade = max(fade, saturate((length(view_pos) - (1.0 - 0.1) * JM_SSSHADOWS_FADE_DISTANCE) / (0.5 * JM_SSSHADOWS_FADE_DISTANCE)));
+			#ifdef JM_SSSHADOWS_DEBUG_MODE
+				ss_shadow_debug.r = direct_occlusions[JM_SSSHADOWS_LIGHT_TO_DEBUG].x * (fade_near + fade);
+				ss_shadow_debug.b = direct_occlusions[JM_SSSHADOWS_LIGHT_TO_DEBUG].x;
 			#endif
 			//screenspace shadow
 			if(min(direct_occlusions[i].x, direct_occlusions[i].y) * (fade_near + fade) > 0.001)
 			{
-				#ifndef JON_MOD_SSSHADOWS_SUPPORT_BOTH_PRIMARY_LIGHTS
+				#ifndef JM_SSSHADOWS_SUPPORT_BOTH_PRIMARY_LIGHTS
 				if(i > 0)
 					continue;
 				#endif
 				
-				#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
+				#ifdef JM_COMPARE_VANILLA_SPLIT_SCREEN
 					if(GetViewPos().x > 0.0)
 				#endif
 				ss_shadow = ScreenSpaceShadows(	world2view_rot(-ldirs[i]),
@@ -1623,7 +1623,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 												vec2(fade_near, fade), 
 												ss_shadow_debug);
 			}
-			#ifdef JON_MOD_SSSHADOWS_FILTER
+			#ifdef JM_SSSHADOWS_FILTER
 				#if 1
 					ss_shadow = mix(ss_shadow, 0.5, saturate((fwidth(ss_shadow))));
 				#else
@@ -1638,7 +1638,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 
 		L = normalize(L);
 
-		#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+		#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 			light_accum += EvalBRDF(cspec,
 									cdiff, 
 									Roughness, 
@@ -1673,8 +1673,8 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 		And the high anisotropic strething reflections you're trying to acomplish with it can't be achieved like this.
 		It is technically possible to stretch the derivatives for a textureCUBEgrad() however. ;)
 		*/
-		#ifdef JON_MOD_DISABLE_EGOSOFT_SMOOTHER_GRAZING_ANGLE
-			#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
+		#ifdef JM_DISABLE_EGOSOFT_SMOOTHER_GRAZING_ANGLE
+			#ifdef JM_COMPARE_VANILLA_SPLIT_SCREEN
 				float ambRoughness = GetViewPos().x > 0.0 ? Roughness : mix(Roughness*0.3, Roughness, pow(v_dot_n, 1.0/3.0));	
 			#else				
 				float ambRoughness = Roughness;
@@ -1703,8 +1703,8 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 // 			ssr.rgb *= (cspec*env_brdf.x + env_brdf.y);
 		}
 
-		#ifdef JON_MOD_USE_RETROREFLECTIVE_DIFFUSE_MODEL
-			#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
+		#ifdef JM_USE_RETROREFLECTIVE_DIFFUSE_MODEL
+			#ifdef JM_COMPARE_VANILLA_SPLIT_SCREEN
 				if(GetViewPos().x > 0.0)
 				{
 					light_accum += combined_ambient_brdf(T_ibl_envmap, cspec, cdiff, csub, wn, wnsub, wv, ambRoughness, RoughnessEpidermal, SubsurfaceMask, Subsurface, ambient_occlusion, ssr, Eamb);
@@ -1740,10 +1740,10 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 	}
 	
 	light_accum = clamp(light_accum.rgb, 0, 10); // safety clamp, not visible
-	#ifdef JON_MOD_SSSHADOWS_DEBUG_MODE
+	#ifdef JM_SSSHADOWS_DEBUG_MODE
 		light_accum = ss_shadow_debug;
 	#endif
-	#ifdef JON_MOD_DEBUG_SUBSURFACE
+	#ifdef JM_DEBUG_SUBSURFACE
 		light_accum += SubsurfaceMask * vec3(1.0, Subsurface, 0.0);
 	#endif
 

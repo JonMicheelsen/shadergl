@@ -35,7 +35,7 @@ void main()
 	
 		vec3 cspec = vec3(0);
 		vec3 cdiff = vec3(0);
-		#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+		#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 			vec3 csub = vec3(0);
 			vec3 SubsurfaceNormal = wn;
 			float Subsurface = 0;
@@ -73,7 +73,7 @@ void main()
 		// smaller cone at edges to highlight fresnel
 		
 		//Jon Note, this is not a good idea, the energy intensity that you think you're simulating should already be covered in the fresnel term.
-		#ifdef JON_MOD_DISABLE_EGOSOFT_SMOOTHER_GRAZING_ANGLE
+		#ifdef JM_DISABLE_EGOSOFT_SMOOTHER_GRAZING_ANGLE
 			float ambRoughness = Roughness;
 		#else
 			// smaller cone at edges to highlight fresnel
@@ -93,8 +93,8 @@ void main()
 		{
 			vec3 R = reflect(-wv, wn);
 			R = EnvMapAdjust(PositionWS, R);
-			#ifdef JON_MOD_USE_RETROREFLECTIVE_DIFFUSE_MODEL
-				#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
+			#ifdef JM_USE_RETROREFLECTIVE_DIFFUSE_MODEL
+				#ifdef JM_COMPARE_VANILLA_SPLIT_SCREEN
 					if(GetViewPos().x > 0.0)
 					{
 						finalColor += combined_ambient_probe_brdf(S_input_rt, cspec, cdiff, csub, wn, SubsurfaceNormal, R, wv, ambRoughness, RoughnessEpidermal, SubsurfaceMask, Subsurface, saturate(ssr_mask));
@@ -127,7 +127,7 @@ void main()
 			#endif
 		}
 		
-		#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES_REACH
+		#ifdef JM_DEBUG_DEBUG_LIGHT_TYPES_REACH
 			OUT_Color.rgb = finalColor.rgb * vec3(4.0, 2.0, 0.0);
 		#endif
 		#ifdef LPASS_BLEND_DEBUG

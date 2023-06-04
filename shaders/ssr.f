@@ -166,17 +166,17 @@ void main()
 	float ambRoughness = 0;
 	float v_dot_n = saturate(dot(view_pos, normal));
 	// smaller cone at edges to highlight fresnel
-	#ifdef JON_MOD_DISABLE_EGOSOFT_SMOOTHER_GRAZING_ANGLE
-		#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN
+	#ifdef JM_DISABLE_EGOSOFT_SMOOTHER_GRAZING_ANGLE
+		#ifdef JM_COMPARE_VANILLA_SPLIT_SCREEN
 		if(pix_uv.x > 0.5)
 		{	
 		#endif
-			#ifdef JON_MOD_SSR_ANGLES_SHARPEN_POW5
+			#ifdef JM_SSR_ANGLES_SHARPEN_POW5
 				ambRoughness = Roughness;			
 			#else
 				ambRoughness = Roughness * (v_dot_n * 0.5 + 0.5);
 			#endif
-		#ifdef JON_MOD_COMPARE_VANILLA_SPLIT_SCREEN	
+		#ifdef JM_COMPARE_VANILLA_SPLIT_SCREEN	
 		}
 		else
 		{

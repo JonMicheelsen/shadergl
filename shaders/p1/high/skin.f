@@ -11,7 +11,7 @@ DEF_LIGHT_DIR(3)
 
 void main()
 {
-#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	float SubsurfaceVal = 0.5;//
 #endif	
 	
@@ -34,7 +34,7 @@ void main()
 	{
 		MetalnessVal *= tex2D(S_metal_map, IO_uv0).r;
 	}
-#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING	
+#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING	
 	MetalnessVal = max(0.0, MetalnessVal * 2.0 - 1.5);//clean that mess up int he textuyres later
 	SubsurfaceVal *= (1.0 - min(1.0, MetalnessVal * 256));
 #endif	
@@ -51,7 +51,7 @@ void main()
 		ColorBaseDiffuse			= tex2D(S_diffuse_map, IO_uv0).rgba;	//Base Diffuse + alpha
 		ColorBaseDiffuse.rgb		= blendAlpha(ColorBaseDiffuse.rgb, mul(ColorBaseDiffuse.rgb, inCOLORMATRIX_BASE), ColorBaseDiffuse.a);
 	}
-#ifdef JON_MOD_ENABLE_SUBSURFACE_BIAS_BLUR_TRICK
+#ifdef JM_ENABLE_SUBSURFACE_BIAS_BLUR_TRICK
 	vec3 wv = GetFragViewDir();// * mat3(M_view);
 	float SubsurfaceBlur = pow2(dot(wv, normalize(mix(IO_normal, Normal, SubsurfaceVal))) * 0.5 + 0.5) * 3.0;	
 	_IF(S_diffuse_bool) //alpha = hueShift Mask (dont shift)
@@ -110,7 +110,7 @@ void main()
 	//MetalnessVal = 0.0f;
 	// DEFERRED_OUTPUT(Normal.xyz, vec3(0, 0, -1), cc, ColorBaseDiffuse.rgb, ColorGlow, GlowStr, MetalnessVal, SmoothnessVal);
 //	GENERAL_OUTPUT(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SmoothnessVal, ColorGlow);
-#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	ColorBaseDiffuse.rgb = bit_pack_albedo_normal(ColorBaseDiffuse.rgb, normalize(IO_normal), SubsurfaceVal);
 	GENERAL_OUTPUT_SUBSURFACE(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SubsurfaceVal, SmoothnessVal, ColorGlow);
 #else	

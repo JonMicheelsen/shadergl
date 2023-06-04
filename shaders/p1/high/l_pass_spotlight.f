@@ -30,7 +30,7 @@ float getPhysicalAtt(in vec3 lraw) {
 */
 void main()
 {
-	#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
+	#ifdef JM_DEBUG_DEBUG_LIGHT_TYPES
 		float level = dot(LUM_ITU601, IO_lightcolor.rgb);
 		vec3 lightcolor = vec3(level, 0.0, level);
 	#else	
@@ -92,7 +92,7 @@ void main()
 	vec3 l;// = normalize(IO_apex - view_pos);
 	l = normalize(-L);
 	float n_dot_l = saturate(dot(Normal, l));
-	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING	
+	#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING	
 		float SubsurfaceMask = max(0.0, ceil(0.5 - Metalness));
 		if (n_dot_l + SubsurfaceMask <= 0.0)	{
 	#else
@@ -110,7 +110,7 @@ void main()
 
 	vec3 cspec = vec3(0);
 	vec3 cdiff = vec3(0);
-	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+	#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	vec3 csub = vec3(0);
 	vec3 SubsurfaceNormal = Normal;
 	float Subsurface = 0;
@@ -176,7 +176,7 @@ void main()
 	OUT_Color.a = 0;
 	
 	LPASS_SHAPE_FINAL_ATTEN(atten)
-#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES_REACH
+#ifdef JM_DEBUG_DEBUG_LIGHT_TYPES_REACH
 	OUT_Color.rgb = lightcolor;
 #endif
 #ifdef LPASS_COUNT

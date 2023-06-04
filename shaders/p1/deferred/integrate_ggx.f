@@ -2062,14 +2062,14 @@ return 0.394531;
 }
 
 
-#ifdef JON_MOD_USE_RETROREFLECTIVE_DIFFUSE_MODEL
+#ifdef JM_USE_RETROREFLECTIVE_DIFFUSE_MODEL
 vec3 integrate_GGX_and_retroreflective_diffuse(float roughness, float n_dot_v)
 {
   vec3 normal = vec3(0.0f, 0.0f, 1.0f);
 
   vec3 view = vec3(sqrt(1.0f - n_dot_v * n_dot_v), 0, n_dot_v);
   float a = 0.0f; float b = 0.0f; float c = 0.0f;
- #ifdef JON_MOD_USE_RETROREFLECTIVE_DIFFUSE_MODEL
+ #ifdef JM_USE_RETROREFLECTIVE_DIFFUSE_MODEL
 	CONST uint num_samples = 256u;//the diffuse needs a ton more samples - and the specular ones looks even better with more too!
 #else
 	CONST uint num_samples = 32u;//was 32
@@ -2102,7 +2102,7 @@ vec3 integrate_GGX_and_retroreflective_diffuse(float roughness, float n_dot_v)
 		// float F_c = F0 + (1-F0)*pow( 1.0f - v_dot_h, 5 );
 		a += (1.0f - F_c) * G_vis;
 		b += F_c * G_vis;
-#ifdef JON_MOD_USE_RETROREFLECTIVE_DIFFUSE_MODEL
+#ifdef JM_USE_RETROREFLECTIVE_DIFFUSE_MODEL
 		// we can throw the retroreflective diffuse BRDF in here!
 		float a2 = roughness*roughness;
 		float g = saturate((1.0 / 18.0) * log2(2.0 / a2 - 1.0));

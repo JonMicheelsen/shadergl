@@ -58,7 +58,7 @@ void main()
 
 	vec3 ColorGlow = vec3(0.1f)* fresnel(VertexToEye, Normal, 3.0f) * ((1.0 + 2.0f*SmoothnessVal) / 3.0)*ColorBaseDiffuse.rgb;
 	
-#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	float SubsurfaceVal = 0.9;
 	ColorBaseDiffuse.rgb = bit_pack_albedo_normal(ColorBaseDiffuse.rgb, normalize(mix(Normal, IO_normal, SubsurfaceVal)), SubsurfaceVal);
 	GENERAL_OUTPUT_SUBSURFACE(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SubsurfaceVal, SmoothnessVal, ColorGlow);

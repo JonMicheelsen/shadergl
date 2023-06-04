@@ -202,7 +202,7 @@ float getPhysicalAtt(in vec3 lraw) {
 
 void main()
 {
-	#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
+	#ifdef JM_DEBUG_DEBUG_LIGHT_TYPES
 		float level = dot(LUM_ITU601, IO_lightcolor.rgb);
 		vec3 lightcolor = vec3(level, 0.0, level * 0.5);
 	#else	
@@ -340,12 +340,12 @@ void main()
 				RI_GBUFFER(Normal, Albedo, Metalness, Smoothness);
 		
 				float Roughness = smooth2rough(Smoothness);//was Smoothness*Smoothness - changed for consistency
-				#ifndef JON_MOD_ROUGHNESS_REMAP
+				#ifndef JM_ROUGHNESS_REMAP
 					Roughness = max(Roughness, 0.05f); // avoid nans after squared divisions
 				#endif	
 				vec3 cspec = vec3(0);
 				vec3 cdiff = vec3(0);
-				#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+				#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 					vec3 csub = vec3(0);
 					vec3 SubsurfaceNormal = Normal;
 					float Subsurface = 0;
@@ -387,11 +387,11 @@ void main()
 					diffuse_occlusion = 1.0f;
 				}
 		
-				#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+				#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 					float n_dot_l_sss = sss_wrap_dot(ldiff, SubsurfaceNormal, Subsurface) * ambient_occlusion; //since we can't shadow we approximate with this instead
 					//finalColor.rgb += saturate(dot(Normal, ldiff)) * diffuse_occlusion * INVPI * lightcolor;
 					vec3 h = normalize(ldiff + v);
-					finalColor.rgb += (cdiff * lightcolor) * (chan_diff(a2, dot(v, Normal), diffndotl, saturate(dot(v, h)), saturate(dot(Normal, h)), 1.0, cspec) * diffuse_occlusion * diffndotl) * JON_MOD_GLOBAL_DIFFUSE_INTENSITY;
+					finalColor.rgb += (cdiff * lightcolor) * (chan_diff(a2, dot(v, Normal), diffndotl, saturate(dot(v, h)), saturate(dot(Normal, h)), 1.0, cspec) * diffuse_occlusion * diffndotl) * JM_GLOBAL_DIFFUSE_INTENSITY;
 				#else	
 					// diffuse contribution
 					vec3 Idiff = lightcolor * diffndotl * diffuse_occlusion;
@@ -413,14 +413,14 @@ void main()
 			//	vec3 Ispec = IO_SpecIntensity * lightcolor * specatten * n_dot_l;
 				// vec3 Ispec = IO_SpecIntensity * IO_Intensity * IO_lightcolor.rgb * specatten * diffndotl;
 			//	finalColor.rgb += Ispec * EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec2(0,1));
-				#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+				#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 					finalColor.rgb += EvalBRDF(cspec, cdiff, Roughness, Lnorm, v, Normal, vec3(0.0, specatten * n_dot_l * IO_SpecIntensity, 0.0), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
-					#ifdef JON_MOD_SUBSURFACE_SQUARED_NDX
+					#ifdef JM_SUBSURFACE_SQUARED_NDX
 						float n_dot_l_abs = pow2(dot(ldiff, SubsurfaceNormal));
 					#else
 						float n_dot_l_abs = abs(dot(ldiff, SubsurfaceNormal));
 					#endif
-					finalColor.rgb += sss_direct_approx(n_dot_l_abs * diffuse_occlusion, csub, cdiff) * n_dot_l_sss * JON_MOD_GLOBAL_SUBSURFACE_INTENSITY;
+					finalColor.rgb += sss_direct_approx(n_dot_l_abs * diffuse_occlusion, csub, cdiff) * n_dot_l_sss * JM_GLOBAL_SUBSURFACE_INTENSITY;
 				#else
 					// specular contribution
 					// vec3 Ispec = IO_SpecIntensity * IO_Intensity * IO_lightcolor.rgb * specatten * diffndotl;

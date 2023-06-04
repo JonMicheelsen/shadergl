@@ -11,7 +11,7 @@ DEF_LIGHT_DIR(3)
 
 void main()
 {
-#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	float SubsurfaceVal = 0.5;//
 #endif	
 	CONST mat3x3 inCOLORMATRIX_BASE = mat3x3(make_ColorMatrix(U_base_brightness_shift, U_base_contrast_shift, U_base_saturation_shift, U_base_hue_shift));
@@ -33,7 +33,7 @@ void main()
 	{
 		MetalnessVal *= tex2D(S_metal_map, IO_uv0).r;
 	}
-#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING	
+#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING	
 	MetalnessVal = max(0.0, MetalnessVal * 2.0 - 1.75);//clean that mess up int he textuyres later
 	SubsurfaceVal *= (1.0 - min(1.0, MetalnessVal * 256));
 #endif	
@@ -48,7 +48,7 @@ void main()
 
 
 	Normal = IO_normal;			
-#ifdef JON_MOD_ENABLE_FULL_ANGLE_CORRECTED_CHARACTER_NORMAL_COMPOSITING		
+#ifdef JM_ENABLE_FULL_ANGLE_CORRECTED_CHARACTER_NORMAL_COMPOSITING		
 		//unreal derives these automatically in every single "Normal" sampler node, this should really not be a problem to do proper per texture
 		vec3 texnorm 		= NormalReZ(vec3(TEXTURE_NORMAL_XY(normal,  IO_uv0) * E.x, 0.0));
 		vec3 texnorm2 		= NormalReZ(vec3(TEXTURE_NORMAL_XY(normal2, IO_uv0) * E.y, 0.0));
@@ -82,7 +82,7 @@ void main()
 			ColorBaseDiffuse.rgb		= blendAlpha(ColorBaseDiffuse.rgb, mul(ColorBaseDiffuse.rgb, inCOLORMATRIX_BASE), ColorBaseDiffuse.a);
 		}
 		
-#ifdef JON_MOD_ENABLE_SUBSURFACE_BIAS_BLUR_TRICK
+#ifdef JM_ENABLE_SUBSURFACE_BIAS_BLUR_TRICK
 		vec3 wv = GetFragViewDir();// * mat3(M_view);
 		float SubsurfaceBlur = pow2(dot(wv, normalize(mix(IO_normal, Normal, SubsurfaceVal))) * 0.5 + 0.5) * 3.0;	
 		_IF(S_diffuse_bool) //alpha = hueShift Mask (dont shift)
@@ -151,7 +151,7 @@ void main()
 	// GENERAL_OUTPUT(Normal.xyz, vec3(0, 0, -1), cc, ColorBaseDiffuse.rgb, ColorGlow, GlowStr, MetalnessVal, SmoothnessVal);
 
 
-#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	ColorBaseDiffuse.rgb = bit_pack_albedo_normal(ColorBaseDiffuse.rgb, normalize(IO_normal), SubsurfaceVal);
 	GENERAL_OUTPUT_SUBSURFACE(Normal, ColorBaseDiffuse.rgb, MetalnessVal, SubsurfaceVal, SmoothnessVal, ColorGlow);
 #else	

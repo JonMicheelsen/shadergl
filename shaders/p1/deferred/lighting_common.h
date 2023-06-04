@@ -6,7 +6,7 @@
 #define DEFERRED_HACK_TO_sRGB(val)		(val)
 
 #include <common_light.h>
-#include <jon_mod_lighting_functions.h>
+#include <../../extensions/jm_x4_shaders/shadergl/shaders/jm_includes/jm_lighting_functions.h>
 
 int IrradianceLevel()
 {
@@ -112,7 +112,7 @@ vec3 EvalBRDF(	in vec3 cspec,
 				in bool fullV)
 {
 	float n_dot_v_raw = dot(n, v);
-#ifdef JON_MOD_USE_STRICTER_N_DOT_V
+#ifdef JM_USE_STRICTER_N_DOT_V
     CONST float e = 0.0001f;
 	float n_dot_v = saturate(abs(n_dot_v_raw)) * (1.0 - e) + e;//the n and v are normalized, we shouldn't need the clamp
 #else	
@@ -140,7 +140,7 @@ vec3 EvalBRDF(	in vec3 cspec,
 	//course_notes_moving_frostbite_to_pbr_v32
 // 	float V = 0.5 * 1.0/( n_dot_l * ( n_dot_v * (1-a)+a) + n_dot_v * ( n_dot_l * (1-a)+a));
 
-#ifdef JON_MOD_USE_LUMINANCE_FRESNEL
+#ifdef JM_USE_LUMINANCE_FRESNEL
 	vec3 F = schlick_f(cspec, v_dot_h);
 #else
 	float f = pow(1-v_dot_h, 5);
@@ -151,7 +151,7 @@ vec3 EvalBRDF(	in vec3 cspec,
 	// 	vec3 diff = f_diff + (1-f_diff) * cdiff;
 	// energy conservation using reflectance luminance
 	// vec3 albedo = cdiff * saturate( 1.0f - dot(LUM_ITU601, cspec));
-#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 	D = mix(D, D_GGX(pow4(roughness_epidermal), n_dot_h), subsurface);
 	roughness = mix(roughness, roughness_epidermal, subsurface);
 	csub = sss_direct_approx(abs(dot(l, nsub)), csub, cdiff);
@@ -159,7 +159,7 @@ vec3 EvalBRDF(	in vec3 cspec,
 	float a = pow2(roughness);
 	float a2 = pow2(a);
 	vec3 diff = vec3(0.0);
-#ifdef JON_MOD_USE_RETROREFLECTIVE_DIFFUSE_MODEL
+#ifdef JM_USE_RETROREFLECTIVE_DIFFUSE_MODEL
 	cdiff *= chan_diff(a2, n_dot_v, n_dot_l, v_dot_h, n_dot_h, 1.0, cspec);
 #else
 	cdiff *= (1.0 / PI) * saturate(1.0f - dot(LUM_ITU601, cspec));
@@ -175,7 +175,7 @@ vec3 EvalBRDF(	in vec3 cspec,
 		V = V_Smith(a, n_dot_v, n_dot_l);
 	}
 	float specular_aliasing_kill = saturate(n_dot_v_raw * 200.0 + 1.0);//the normals can point around the horizon, which makes a mess with the specular!
-	mask *= vec3(JON_MOD_GLOBAL_DIFFUSE_INTENSITY, JON_MOD_GLOBAL_SPECULAR_INTENSITY, JON_MOD_GLOBAL_SUBSURFACE_INTENSITY);
+	mask *= vec3(JM_GLOBAL_DIFFUSE_INTENSITY, JM_GLOBAL_SPECULAR_INTENSITY, JM_GLOBAL_SUBSURFACE_INTENSITY);
 	
 	return cdiff * mask.x + (D * V * mask.y * specular_aliasing_kill) * F + csub * mask.z;
 }
@@ -347,7 +347,7 @@ vec3 get_irradiance(samplerCube filtered_env_map, in vec3 n) {
 }
 
 void get_colors(in vec3 albedo, in float metalness, out vec3 cspec, out vec3 cdiff) {
-	#ifdef JON_MOD_DEBUG_GREY_WORLD
+	#ifdef JM_DEBUG_GREY_WORLD
 		albedo = vec3(1.0);
 	#endif
     cdiff = albedo * (1.0-metalness);
@@ -362,7 +362,7 @@ vec3 simple_light(in vec3 clight, in vec3 l, in vec3 n, in vec3 v, in vec3 albed
     vec3 cdiff;
 /*
 	//include is not included here, and simple_light is not used by Egosoft
-	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+	#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 		float Subsurface = 0.0;
 		UnpackMetalSubsurface(metalness, Subsurface);
 	#endif

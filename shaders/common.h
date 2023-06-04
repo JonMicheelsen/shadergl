@@ -981,5 +981,5 @@ float volume_getfadefactor(float viewz, float size)
 	#define XR_TO_linearRGB(val)	(val)
 #endif
 
-#include <jon_mod_defines.h>
-#include <jon_mod_util_functions.h>
+#include <../../extensions/jm_x4_shaders/shadergl/shaders/jm_includes/jm_defines.h>
+#include <../../extensions/jm_x4_shaders/shadergl/shaders/jm_includes/jm_util_functions.h>

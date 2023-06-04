@@ -1,4 +1,4 @@
-#include <jon_mod_buffer_encoding_functions.h>
+#include <../../extensions/jm_x4_shaders/shadergl/shaders/jm_includes/jm_buffer_encoding_functions.h>
 // #define USE24BITNORMALCOMPRESSION
 
 //Lambert Azimuthal Equal-Area Projection
@@ -488,7 +488,7 @@ void RI_GBufferPBR(out float smoothness, out float metalness)
 	OUT_Color3 = vec4(SMOOTH, METAL, 0, A);	\
 }
 
-#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 
 	#define GENERAL_OUTPUTA_SUBSURFACE(A, N, ALBEDO, METAL, SUBSURFACE, SMOOTH, GLOW) \
 	{ \

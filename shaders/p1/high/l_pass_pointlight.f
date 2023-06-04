@@ -17,7 +17,7 @@ in vec3 IO_lightcolor;
 
 void main()
 {
-	#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES
+	#ifdef JM_DEBUG_DEBUG_LIGHT_TYPES
 		float level = dot(LUM_ITU601, IO_lightcolor.rgb);
 		vec3 lightcolor = vec3(0.0, level, 0.0);
 	#else	
@@ -51,7 +51,7 @@ void main()
 	
 	float n_dot_l = saturate(dot(l, Normal));
 	float SubsurfaceMask = 0;
-	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING	
+	#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING	
 		SubsurfaceMask = max(0.0, ceil(0.5 - Metalness));
 		if (n_dot_l + SubsurfaceMask <= 0.0)
 	#else
@@ -76,7 +76,7 @@ void main()
 	float Subsurface = 0;
 	float RoughnessEpidermal = 0.5;
 	
-	#ifdef JON_MOD_ENABLE_SUBSURFACE_GBUFFER_PACKING
+	#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
 		get_colors(	Albedo, 
 					Metalness, 
 					Roughness, 
@@ -135,7 +135,7 @@ void main()
 
 	LPASS_SHAPE_FINAL_ATTEN(atten)
 
-#ifdef JON_MOD_DEBUG_DEBUG_LIGHT_TYPES_REACH
+#ifdef JM_DEBUG_DEBUG_LIGHT_TYPES_REACH
 	OUT_Color.rgb = lightcolor;
 #endif
 #ifdef LPASS_COUNT
