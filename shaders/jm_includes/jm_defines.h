@@ -15,7 +15,7 @@
 	#define JM_ROUGHNESS_REMAP_PRE_SQUARE_RANGE 0.4142f//default 0.4142f, at this point 0.5 = 0.5, 0 = 0.17 1=1
 	#define JM_SSR_UNHARDEN //Vanilla SSR appears to be visually too smooth in it's roughness response compared to all other specular - per design, this mitigates this
 	
-	#define JM_SSAO_RANGE_BOOST 1.0 //vanilla is 1
+	#define JM_SSAO_RANGE_BOOST 1.5 //vanilla is 1
 	#define JM_SSAO_POW_BOOST 2.0 //vanilla is 2
 	#define JM_SSAO_DARKEST_POINT 0.25 //vanilla is 0, but reaching pure 0 doesn't look great!
 	//Trick that makes it look like lights are casting soft area shadows using wide SSAO, so needs a little SSAO boosting for best effect!
@@ -33,7 +33,7 @@
 		#define JM_SUBSURFACE_EPIDERMAL_TINT vec3(0.968750, 0.833764, 0.483325) //vec3(0.910580, 0.338275, 0.271800) vec3(1.000000,0.088964,0.072095)
 		#define JM_SUBSURFACE_EPIDERMAL_F0 0.0224f	//se notes above
 		#define JM_SUBSURFACE_SUBDERMAL_SPEC_CAP 0.95	
-		#define JM_SUBSURFACE_WRAP_SCALE 0.0//default 0.25, 
+		#define JM_SUBSURFACE_WRAP_SCALE 1.0//default 0.25, 
 		#define JM_SUBSURFACE_SQUARED_NDX //much more energetic but perhaps more natural looking 
 		#define JM_SUBSURFACE_ID_COUNT 8
 																							// 0 default no SSS
@@ -89,7 +89,7 @@
 	//enabling this tonemaps all existing glows to 0-1 range, so the JM_GLOWS has a more uniform effect
 	#define JM_GLOWS_LEVELLED 0.9//0-1 range blend of levelled part
 	//increase to boost globally!
-	#define JM_GLOWS	vec3(11.0, 11.0, 11.0)	
+	#define JM_GLOWS	vec3(12.0, 12.0, 12.0)	
 	//#define JM_DEBUG_DEBUG_LIGHT_TYPES_REACH
 	//#define JM_DEBUG_DISABLE_AMBIENT_LIGHT
 	//#define JM_DEBUG_DEBUG_LIGHT_TYPES
@@ -107,8 +107,8 @@
 		#define JM_AREA 	vec3(1.0) * 1.0			        //increase to boost globally!
 		#define JM_AREA_GEN vec3(1.0) * 1.0				    //increase to boost globally!
 		#define JM_BOX 		vec3(1.0) * 1.0				    //increase to boost globally!
-		#define JM_POINT 	vec3(1.0) * 1.0			        //increase to boost globally!
-		#define JM_SPOT 	vec3(1.0) * 1.0			        //increase to boost globally!
+		#define JM_POINT 	vec3(1.0) * 1.0			    	//increase to boost globally!
+		#define JM_SPOT 	vec3(1.0) * 1.0			    	//increase to boost globally!
 		#define JM_STAR1 	vec3(1.0) * 1.0			        //increase to boost globally!
 		#define JM_STAR2 	vec3(1.0) * 1.0			        //increase to boost globally!
 		#define JM_PROBE 	vec3(1.0) * 1.0			        //increase to boost globally!
