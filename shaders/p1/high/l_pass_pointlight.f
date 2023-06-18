@@ -19,9 +19,9 @@ void main()
 {
 	#ifdef JM_DEBUG_DEBUG_LIGHT_TYPES
 		float level = dot(LUM_ITU601, IO_lightcolor.rgb);
-		vec3 lightcolor = vec3(0.0, level, 0.0);
+		vec3 lightcolor = JM_POINT * level;
 	#else	
-		vec3 lightcolor = IO_lightcolor.rgb;
+		vec3 lightcolor = IO_lightcolor.rgb * JM_POINT;
 	#endif
 
 	OUT_Color = vec4(0);
@@ -49,7 +49,7 @@ void main()
 	float Smoothness;
 	RI_GBUFFER_METAL_SMOOTH(Metalness, Smoothness);
 	
-	float n_dot_l = saturate(dot(l, Normal));
+	float n_dot_l = dot(l, Normal);
 	float SubsurfaceMask = 0;
 	#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING	
 		SubsurfaceMask = max(0.0, ceil(0.5 - Metalness));
@@ -114,6 +114,8 @@ void main()
 		  //looks like either glslang or nvidia-driver bug, or I'm not aware of some detail of the spec
 		diffuse_occlusion = 1.0f;
 	}	
+	diffuse_occlusion = soft_micro_shadow(diffuse_occlusion, abs(n_dot_l));
+	n_dot_l = saturate(n_dot_l);
 
 	//TODO @Timon this is all so wrong, but historical reasons... 
 #ifdef LOCALSPEC
@@ -125,10 +127,12 @@ void main()
 	float atten = PSquareDistanceAtt;
 	finalColor.rgb *= atten;
 	finalColor.a = 1;
+	//this wasn't clamping originally, but I think it can nan, which a clamp can kill!		
+	#ifdef JM_OVERWRITE_VANILLA_LIGHT_INTENSITY_CLAMPS
+		finalColor.rgb = clamp(finalColor.rgb, vec3(0.0), vec3(JM_OVERWRITE_VANILLA_LIGHT_INTENSITY_CLAMPS)); // safety
+	#endif
 	
 	finalColor = DEFERRED_HACK_TO_sRGB(finalColor);
-	
-
 
 	OUT_Color.rgb = finalColor.rgb * diffuse_occlusion;
 	OUT_Color.a = 0;

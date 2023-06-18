@@ -1522,7 +1522,8 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 	lcolors[1] = vec3(0.0, level, level);
 #endif 
 	for (int i = 0; i < 2; ++i) {
-		direct_occlusions[i] = vec3(saturate(dot(ldirs[i], wn)), saturate(dot(ldirs[i], wn)), SubsurfaceMask * sss_wrap_dot(ldirs[i], wnsub, Subsurface));
+		float n_dot_l = dot(ldirs[i], wn);
+		direct_occlusions[i] = saturate(vec3(n_dot_l, n_dot_l, SubsurfaceMask * sss_wrap_dot(ldirs[i], wnsub, Subsurface)) * soft_micro_shadow(ambient_occlusion, abs(n_dot_l)));
 	}
 	
 	//vec3 l = mat3(M_view) * normalize(V_direction1.xyz);
@@ -1620,6 +1621,7 @@ vec3 global_lights(in vec3 wn, in vec3 view_pos, in vec3 Albedo, in float Metaln
 				#endif
 				ss_shadow = ScreenSpaceShadows(	world2view_rot(-ldirs[i]),
 												dot(ldirs[i], wn),
+												dot(wv, wn),
 												vec2(fade_near, fade), 
 												ss_shadow_debug);
 			}

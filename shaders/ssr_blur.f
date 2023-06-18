@@ -50,7 +50,22 @@ void main()
 	
 	if (hit >= 0.7) //apply contact hardening only on fairly certain hits
 	{
+#ifdef JM_SSR_UNHARDEN
+		#ifdef JM_COMPARE_VANILLA_SPLIT_SCREEN
+			if(IO_uv0.x > 0.5)
+			{	
+				dist += roughness; //Jon M. the 0.3 appears to make it way to smooth at distance, compared to all other specular responses!
+			}
+		else
+			{
+				dist += (0.3 * roughness); // make sure it never goes overly smooth for rough surfaces
+			}
+		#else
+			dist += roughness; //Jon M. the 0.3 appears to make it way to smooth at distance, compared to all other specular responses!
+		#endif
+#else
 		dist += (0.3 * roughness); // make sure it never goes overly smooth for rough surfaces
+#endif
 		dist = saturate(dist);
 		roughness *= (dist);
 	}

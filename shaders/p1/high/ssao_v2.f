@@ -212,6 +212,13 @@ void main()
 	//float uRadius = (1.0f / V_viewportpixelsize.x);//0.025f;
 	float uRadius = (U_ssao_sampleradius / V_viewportpixelsize.x)*0.0125f;//0.025f;
 	uRadius *= max(origin.z/(5.0f*DEPTH_SCALE),1.0f);
+	
+	#ifdef JM_SSAO_RANGE_BOOST
+		#ifdef JM_COMPARE_VANILLA_SPLIT_SCREEN
+			if(inVPos.x > V_viewportpixelsize.x * 0.5)
+		#endif		
+		uRadius *= JM_SSAO_RANGE_BOOST;
+	#endif
 	//do the actual occluseion checks
 	float occlusion = 0.0;
 	for (int i = 0; i < kernelSize; ++i) {
@@ -247,6 +254,10 @@ void main()
 
 	occlusion = 1.0 - (occlusion / kernelSize)*U_ssao_intensity;
 
-	OUT_Color.r = pow(occlusion,2);// pow(occlusion, 4);//saturate(ao);
+	#ifdef JM_SSAO_POW_BOOST
+		OUT_Color.r = saturate(pow(occlusion, JM_SSAO_POW_BOOST) * (1.0 - JM_SSAO_DARKEST_POINT) + JM_SSAO_DARKEST_POINT);//saturate(ao);
+	#else
+		OUT_Color.r = pow2(occlusion);// pow(occlusion, 4);//saturate(ao);
+	#endif
 }
 

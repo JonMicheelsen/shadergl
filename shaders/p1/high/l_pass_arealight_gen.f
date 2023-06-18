@@ -197,9 +197,9 @@ void main()
 {
 	#ifdef JM_DEBUG_DEBUG_LIGHT_TYPES
 		float level = dot(LUM_ITU601, IO_lightcolor.rgb);
-		vec3 lightcolor = vec3(level, level * 0.5, 0.0);
+		vec3 lightcolor = JM_AREA_GEN * level;
 	#else	
-		vec3 lightcolor = IO_lightcolor.rgb;
+		vec3 lightcolor = IO_lightcolor.rgb * JM_AREA_GEN;
 	#endif
 	
 	OUT_Color = vec4(0);
@@ -278,7 +278,7 @@ void main()
 		float Smoothness;
 		RI_GBUFFER_METAL_SMOOTH(Metalness, Smoothness);
 		
-		float diffndotl = saturate(dot(Normal, ldiff));
+		float diffndotl = dot(Normal, ldiff);
 			
 		float SubsurfaceMask = 0;
 		#ifdef JM_USE_DISCARD_AREALIGHT_MORE
@@ -346,7 +346,9 @@ void main()
 			//looks like either glslang or nvidia-driver bug, or I'm not aware of some detail of the spec
 			diffuse_occlusion = 1.0f;
 		}
-	
+		
+		diffuse_occlusion = soft_micro_shadow(diffuse_occlusion, abs(diffndotl));
+		diffndotl = saturate(diffndotl);
 		vec3 v = normalize(-view_pos);
 		
 		#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING
@@ -423,9 +425,13 @@ void main()
 				}
 			}
 		}*/
-	
-		finalColor.rgb = clamp(finalColor.rgb, 0, 10); // safety
-		finalColor.rgb = clamp(finalColor.rgb, 0, 2); // reduce flares
+			
+		#ifdef JM_OVERWRITE_VANILLA_LIGHT_INTENSITY_CLAMPS
+			finalColor.rgb = clamp(finalColor.rgb, vec3(0.0), vec3(JM_GLOWS_LEVELLED)); // safety
+		#else	
+//			finalColor.rgb = clamp(finalColor.rgb, vec2(0.0), vec3(10.0)); // safety
+			finalColor.rgb = clamp(finalColor.rgb, vec3(0.0), vec3(2.0)); // reduce flares
+		#endif
 		finalColor.rgb *= diffuse_occlusion;
 		
 		OUT_Color.rgb = finalColor.rgb;

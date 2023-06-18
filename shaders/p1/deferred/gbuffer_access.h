@@ -439,7 +439,7 @@ void RI_GBufferPBR(out float smoothness, out float metalness)
 
 #define STORE_GBUFFER(NORMAL, ALBEDO, METAL, SMOOTH, GLOW) \
 { \
-	OUT_Color = vec4(GLOW, 1);				\
+	OUT_Color = vec4(level_glows(GLOW), 1);		\
 	OUT_Color1 = vec4(ALBEDO, 1);	\
 	OUT_Color2 = vec4(0, 0, 0, 1);			\
 	UniWriteNormal(OUT_Color2, NORMAL);		\
@@ -448,7 +448,7 @@ void RI_GBufferPBR(out float smoothness, out float metalness)
 
 #define STORE_GBUFFERA(A, NORMAL, ALBEDO, METAL, SMOOTH, GLOW) \
 { \
-	OUT_Color = vec4(GLOW, A);				\
+	OUT_Color = vec4(level_glows(GLOW), A);		\
 	OUT_Color1 = vec4(ALBEDO, A);	\
 	OUT_Color2 = vec4(0, 0, 0, A);			\
 	UniWriteNormal(OUT_Color2, NORMAL);		\

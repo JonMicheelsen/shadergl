@@ -32,10 +32,10 @@ void main()
 {
 	#ifdef JM_DEBUG_DEBUG_LIGHT_TYPES
 		float level = dot(LUM_ITU601, IO_lightcolor.rgb);
-		vec3 lightcolor = vec3(level, 0.0, level);
+		vec3 lightcolor = JM_SPOT * level;
 	#else	
-		vec3 lightcolor = IO_lightcolor.rgb;
-	#endif	
+		vec3 lightcolor = IO_lightcolor.rgb * JM_SPOT;
+	#endif
 	
 	OUT_Color = vec4(0);
 	
@@ -91,7 +91,7 @@ void main()
 	
 	vec3 l;// = normalize(IO_apex - view_pos);
 	l = normalize(-L);
-	float n_dot_l = saturate(dot(Normal, l));
+	float n_dot_l = dot(Normal, l);
 	#ifdef JM_ENABLE_SUBSURFACE_GBUFFER_PACKING	
 		float SubsurfaceMask = max(0.0, ceil(0.5 - Metalness));
 		if (n_dot_l + SubsurfaceMask <= 0.0)	{
@@ -141,6 +141,8 @@ void main()
 		  //looks like either glslang or nvidia-driver bug, or I'm not aware of some detail of the spec
 		diffuse_occlusion = 1.0f;
 	}
+//	diffuse_occlusion = soft_micro_shadow(diffuse_occlusion, abs(n_dot_l));
+	n_dot_l = saturate(n_dot_l);
 	float3 light;
 //	#if 0
 //		#ifdef LOCALSPEC
@@ -150,7 +152,7 @@ void main()
 //		#endif
 //	#else
 //		#ifdef LOCALSPEC
-			light = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0.0, n_dot_l_sss * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, diffuse_occlusion, false) * lightcolor;
+			light = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0.0, n_dot_l_sss * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, SubsurfaceNormal, false) * lightcolor;
 //		#else
 //			light = EvalBRDF(cspec, cdiff, Roughness, l, v, Normal, vec3(n_dot_l, 0, n_dot_l * SubsurfaceMask), Subsurface, RoughnessEpidermal, csub, false) * lightcolor;
 //		#endif
@@ -170,7 +172,14 @@ void main()
 
 
 	finalColor = DEFERRED_HACK_TO_sRGB(finalColor);
-	finalColor.rgb = clamp(finalColor.rgb, 0, 2) * diffuse_occlusion; // reduce flares
+	
+			
+	#ifdef JM_OVERWRITE_VANILLA_LIGHT_INTENSITY_CLAMPS
+		finalColor.rgb = clamp(finalColor.rgb, vec3(0.0), vec3(JM_OVERWRITE_VANILLA_LIGHT_INTENSITY_CLAMPS)); // safety
+	#else	
+//		finalColor.rgb = clamp(finalColor.rgb, vec2(0.0), vec3(10.0)); // safety
+		finalColor.rgb = clamp(finalColor.rgb, vec3(0.0), vec3(2.0)); // reduce flares
+	#endif
 
 	OUT_Color.rgb = finalColor.rgb;
 	OUT_Color.a = 0;
